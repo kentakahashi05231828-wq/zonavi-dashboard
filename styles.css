@@ -40,6 +40,7 @@
   --accent:     #294056;   /* ネイビー：ヘッダー・主要ボタン */
   --accent-ink: #FFFFFF;
   --accent-sub: #4A6982;
+  --logo:       #034C5D;   /* 素材画像/zonavi_icon_trans.svg と同じロゴの色 */
 
   /* タブ配色（ブランド色相のまま、面 #FFFFFF 向けに明度・彩度を調整）
      全ペア検証：CVD ΔE 9.2 ／ 通常視 ΔE 15.3 ／ コントラスト 全色 3:1 以上 */
@@ -87,6 +88,7 @@
     --accent:     #7FA6C8;
     --accent-ink: #12171C;
     --accent-sub: #A8C4DC;
+    --logo:       #7EBACB;   /* 暗い地でも読めるよう、同じ色相で明るい段に */
 
     /* 面 #1B1D21 向けの段。全ペア検証：CVD ΔE 9.2 ／ 通常視 ΔE 15.3 */
     --tab-schedule: #42A98B;
@@ -120,6 +122,7 @@
   --accent:     #7FA6C8;
   --accent-ink: #12171C;
   --accent-sub: #A8C4DC;
+  --logo:       #7EBACB;
   --tab-schedule: #42A98B;
   --tab-home:     #6192DF;
   --tab-links:    #CC8200;
@@ -479,3 +482,25 @@ main > footer p { margin: 0; }
 }
 .demo-banner span { flex: 1 1 240px; min-width: 0; }
 .demo-banner a { color: var(--accent); font-weight: 700; text-underline-offset: 3px; }
+
+/* ── アイコンとロゴ ──
+   アイコンは Google Material Symbols (Outlined) を取得して <symbol> にまとめたもの。
+   currentColor で塗るのでテーマに追従し、外部リクエストも増えない。 */
+.sprite { display: none; }
+.ic { width: 16px; height: 16px; fill: currentColor; flex: none; }
+.sec-ic {
+  width: 20px; height: 20px; fill: currentColor; flex: none;
+  color: var(--accent-sub); align-self: center; transition: color .16s;
+}
+.section > summary:hover .sec-ic { color: var(--accent); }
+
+.brand .mark { height: 30px; width: auto; display: block; flex: none; }
+.wordmark { height: 17px; width: auto; color: var(--logo); display: block; flex: none; }
+.gate-mark { display: block; margin: 0 auto 14px; }
+.wordmark.lg { height: 30px; margin: 0 auto; }
+
+@media (max-width: 720px) {
+  .brand .mark { height: 26px; }
+  .wordmark { height: 15px; }
+  .sec-ic { width: 18px; height: 18px; }
+}

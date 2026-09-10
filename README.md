@@ -155,6 +155,32 @@ API キーが不要で公開リポジトリのまま動き、卒制の考察に�
 - ページ地：`#FCFAFA`、カードは白のフラット（影なし）、角丸は `DS.Radius`
 - 余白は `DS.Spacing`（4 / 8 / 12 / 16 / 24 / 32）
 
+### アイコンとロゴ
+
+- **ロゴ**：`素材画像/zonavi_icon_trans.svg`（Z のマーク）と、ロゴアニメーション素材のワードマークを
+  `assets/zonavi-mark.svg` と HTML 内のスプライトに取り込んでいます。favicon も同じマークです。
+  ワードマークは `currentColor` で塗るようにし、本来の色 `#034C5D` をライトで、
+  暗い地でも読める同色相の明るい段をダークで使います。
+- **アイコン**：Google Material Symbols（Outlined）を SVG で取得し、
+  1つの `<symbol>` スプライトにまとめて HTML に埋め込んでいます。
+  外部リクエストが増えず、`currentColor` なのでテーマにも追従します。
+
+| セクション | アイコン | セクション | アイコン |
+| --- | --- | --- | --- |
+| サマリー | `summarize` | ウィジェット | `widgets` |
+| ユーザー数 | `group` | 時間帯別の利用 | `schedule` |
+| 日別の推移 | `show_chart` | 曜日別の利用 | `calendar_month` |
+| タブ別の使われ方 | `tab` | 利用環境の内訳 | `smartphone` |
+| 機能別の利用回数 | `touch_app` | 全データ表 | `table_chart` |
+| 機能ごとの利用者数 | `groups` | レポート | `auto_awesome` |
+
+ボタンにも `refresh` / `logout` / `light_mode` / `dark_mode` / `download` / `content_copy` を使っています。
+アイコンを足すときは、同じ手順で SVG を取得してスプライトに `<symbol>` を1つ追加します。
+
+```
+https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/<名前>/default/24px.svg
+```
+
 ### 意図的に変えたところ
 
 | 項目 | デザインシステム | ここでの値 | 理由 |

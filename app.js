@@ -119,7 +119,10 @@ function initTheme() {
       ? document.documentElement.dataset.theme === "dark"
       : matchMedia("(prefers-color-scheme: dark)").matches;
     const btn = $("#theme-toggle");
-    if (btn) { btn.textContent = isDark ? "☾" : "☀"; btn.title = isDark ? "ライトモードへ" : "ダークモードへ"; }
+    const ic = $("#theme-ic");
+    // 切り替えた先を示すアイコンにする（今ダークなら「ライトへ」の太陽）
+    if (ic) ic.setAttribute("href", isDark ? "#ic-light_mode" : "#ic-dark_mode");
+    if (btn) btn.title = isDark ? "ライトモードへ" : "ダークモードへ";
   };
   window.__applyThemeLabel = apply;
   apply();
@@ -1493,14 +1496,14 @@ function wireControls() {
   }));
   $$("#report-seg button").forEach(x => x.setAttribute("aria-pressed", x.dataset.window === state.reportWindow));
   $("#report-copy").addEventListener("click", async ev => {
-    const btn = ev.currentTarget;
+    const lb = ev.currentTarget.querySelector(".lb") ?? ev.currentTarget;
     try {
       await navigator.clipboard.writeText(reportAsText());
-      btn.textContent = "コピーしました";
+      lb.textContent = "コピーしました";
     } catch {
-      btn.textContent = "コピーできませんでした";
+      lb.textContent = "コピーできませんでした";
     }
-    setTimeout(() => { btn.textContent = "レポートをコピー"; }, 1800);
+    setTimeout(() => { lb.textContent = "レポートをコピー"; }, 1800);
   });
   $("#refresh").addEventListener("click", refresh);
   $("#theme-toggle").addEventListener("click", toggleTheme);

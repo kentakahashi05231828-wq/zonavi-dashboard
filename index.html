@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#294056">
   <title>ZONAVI 利用状況ダッシュボード</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22%23294056%22%2F%3E%3Crect%20x%3D%227%22%20%20y%3D%2217%22%20width%3D%224%22%20height%3D%229%22%20%20rx%3D%221.6%22%20fill%3D%22%236192DF%22%2F%3E%3Crect%20x%3D%2214%22%20y%3D%2211%22%20width%3D%224%22%20height%3D%2215%22%20rx%3D%221.6%22%20fill%3D%22%2375C2A8%22%2F%3E%3Crect%20x%3D%2221%22%20y%3D%227%22%20%20width%3D%224%22%20height%3D%2219%22%20rx%3D%221.6%22%20fill%3D%22%23D98E1A%22%2F%3E%3C%2Fsvg%3E">
+  <link rel="icon" href="./assets/zonavi-mark.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- DESIGN_RULES.md より：Google Fonts は Noto Sans JP のみ。Futura はシステムフォント -->
@@ -16,10 +16,45 @@
 </head>
 <body>
 
+  <!-- アイコン定義。Material Symbols (Outlined) を Google から取得したもの。
+       currentColor で塗るのでテーマに追従する。 -->
+  <svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="zonavi-wordmark" viewBox="0 0 1138.06 231.42"><g id="_レイヤー_1-2" data-name="レイヤー 1">
+    <g>
+      <path fill="currentColor" stroke="currentColor" stroke-miterlimit="10" stroke-width="8" d="M171.93,39.12L47.68,187.87c-1.18,1.38-1.77,2.76-1.77,4.13,0,2.36,1.77,3.54,5.31,3.54h121.01c1.96,0,3.49.54,4.57,1.62,1.08,1.08,1.62,2.61,1.62,4.57v15.94c0,1.97-.54,3.5-1.62,4.58s-2.61,1.62-4.57,1.62H10.2c-1.97,0-3.5-.54-4.57-1.62-1.08-1.08-1.62-2.61-1.62-4.58v-17.71c0-2.75.89-5.31,2.66-7.67L129.43,43.55c1.18-1.57,1.77-2.95,1.77-4.13,0-2.36-1.77-3.54-5.31-3.54H20.53c-1.97,0-3.5-.54-4.58-1.62-1.08-1.08-1.62-2.61-1.62-4.58v-15.94c0-1.96.54-3.49,1.62-4.57,1.08-1.08,2.61-1.62,4.58-1.62h147.86c1.96,0,3.49.54,4.57,1.62,1.08,1.08,1.62,2.61,1.62,4.57v17.71c0,3.15-.89,5.71-2.66,7.67Z"/>
+      <path fill="currentColor" stroke="currentColor" stroke-miterlimit="10" stroke-width="8" d="M256.04,212.96c-15.94-9.64-28.04-22.92-36.3-39.84-8.26-16.92-12.4-36.1-12.4-57.55s4.13-40.58,12.4-57.4c8.26-16.82,20.36-30.05,36.3-39.7,15.94-9.64,35.02-14.46,57.26-14.46s41.37,4.82,57.4,14.46c16.03,9.64,28.19,22.87,36.45,39.7,8.26,16.82,12.4,35.96,12.4,57.4s-4.13,40.63-12.4,57.55c-8.26,16.92-20.37,30.21-36.3,39.84-15.94,9.64-35.12,14.46-57.55,14.46s-41.32-4.82-57.26-14.46ZM353.88,186.69c10.72-7.67,18.64-17.75,23.76-30.25,5.11-12.49,7.67-26.12,7.67-40.88s-2.56-28.08-7.67-40.58c-5.12-12.49-13.04-22.58-23.76-30.25-10.73-7.67-24.25-11.51-40.58-11.51s-29.62,3.84-40.43,11.51c-10.82,7.67-18.74,17.76-23.76,30.25-5.02,12.5-7.53,26.02-7.53,40.58s2.51,28.38,7.53,40.88c5.02,12.5,12.93,22.58,23.76,30.25,10.82,7.67,24.3,11.51,40.43,11.51s29.85-3.84,40.58-11.51Z"/>
+      <path fill="currentColor" stroke="currentColor" stroke-miterlimit="10" stroke-width="8" d="M611.09,166.33c.98,0,1.77-.44,2.36-1.33s.89-2.21.89-3.98V13.74c0-1.96.54-3.49,1.62-4.57s2.61-1.62,4.57-1.62h18.3c1.96,0,3.49.54,4.57,1.62,1.08,1.08,1.62,2.61,1.62,4.57v203.94c0,1.97-.54,3.5-1.62,4.58-1.08,1.08-2.61,1.62-4.57,1.62h-20.66c-3.15,0-5.61-1.28-7.38-3.84l-110.09-152.29c-1.38-1.96-2.76-2.95-4.13-2.95-.99,0-1.82.49-2.51,1.48-.69.99-1.03,2.36-1.03,4.13v147.27c0,1.97-.54,3.5-1.62,4.58s-2.61,1.62-4.57,1.62h-18.59c-1.97,0-3.5-.54-4.58-1.62-1.08-1.08-1.62-2.61-1.62-4.58V13.74c0-1.96.54-3.49,1.62-4.57,1.08-1.08,2.61-1.62,4.58-1.62h21.54c3.14,0,5.61,1.28,7.38,3.84l109.5,152c1.37,1.97,2.85,2.95,4.43,2.95Z"/>
+      <path fill="currentColor" stroke="currentColor" stroke-miterlimit="10" stroke-width="8" d="M876.42,219.15c0,3.15-1.87,4.72-5.61,4.72h-24.79c-3.54,0-5.9-1.67-7.08-5.02l-19.48-54.3c-1.18-3.34-3.54-5.02-7.08-5.02h-74.96c-3.54,0-5.9,1.67-7.08,5.02l-19.48,54.3c-1.18,3.35-3.54,5.02-7.08,5.02h-24.79c-3.74,0-5.61-1.57-5.61-4.72l.59-2.36L752.46,12.56c1.18-3.34,3.54-5.02,7.08-5.02h30.69c3.54,0,5.9,1.67,7.08,5.02l78.51,204.24.59,2.36ZM774.89,46.79c-.79,0-1.58.4-2.36,1.18s-1.38,1.77-1.77,2.95l-25.68,72.9-.59,2.36c0,3.15,1.87,4.72,5.61,4.72h49.58c3.74,0,5.61-1.57,5.61-4.72l-.59-2.36-25.68-72.9c-.99-2.75-2.36-4.13-4.13-4.13Z"/>
+      <path fill="currentColor" stroke="currentColor" stroke-miterlimit="10" stroke-width="8" d="M975.88,171.64c.78,0,1.57-.39,2.36-1.18.78-.78,1.38-1.77,1.77-2.95l57.26-154.95c1.18-3.34,3.54-5.02,7.08-5.02h21.25c1.77,0,3.14.4,4.13,1.18.98.79,1.48,1.87,1.48,3.25,0,.59-.2,1.48-.59,2.66l-76.15,204.23c-1.18,3.35-3.54,5.02-7.08,5.02h-23.02c-3.54,0-5.9-1.67-7.08-5.02L881.14,14.62c-.4-1.18-.59-2.07-.59-2.66,0-1.37.49-2.46,1.48-3.25.98-.78,2.36-1.18,4.13-1.18h21.25c3.54,0,5.9,1.67,7.08,5.02l57.26,154.95c1.18,2.76,2.55,4.13,4.13,4.13Z"/>
+      <path fill="currentColor" stroke="currentColor" stroke-miterlimit="10" stroke-width="8" d="M1132.44,222.25c-1.08,1.08-2.61,1.62-4.57,1.62h-19.77c-1.97,0-3.5-.54-4.57-1.62-1.08-1.08-1.62-2.61-1.62-4.58V13.74c0-1.96.54-3.49,1.62-4.57s2.61-1.62,4.57-1.62h19.77c1.96,0,3.49.54,4.57,1.62,1.08,1.08,1.62,2.61,1.62,4.57v203.94c0,1.97-.54,3.5-1.62,4.58Z"/>
+    </g>
+  </g></symbol>
+  <symbol id="ic-summarize" viewBox="0 -960 960 960"><path d="M348.5-611.5Q360-623 360-640t-11.5-28.5Q337-680 320-680t-28.5 11.5Q280-657 280-640t11.5 28.5Q303-600 320-600t28.5-11.5Zm0 160Q360-463 360-480t-11.5-28.5Q337-520 320-520t-28.5 11.5Q280-497 280-480t11.5 28.5Q303-440 320-440t28.5-11.5Zm0 160Q360-303 360-320t-11.5-28.5Q337-360 320-360t-28.5 11.5Q280-337 280-320t11.5 28.5Q303-280 320-280t28.5-11.5ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h440l200 200v440q0 33-23.5 56.5T760-120H200Zm0-80h560v-400H600v-160H200v560Zm0-560v160-160 560-560Z"/></symbol>
+  <symbol id="ic-group" viewBox="0 -960 960 960"><path d="M40-160v-112q0-34 17.5-62.5T104-378q62-31 126-46.5T360-440q66 0 130 15.5T616-378q29 15 46.5 43.5T680-272v112H40Zm720 0v-120q0-44-24.5-84.5T666-434q51 6 96 20.5t84 35.5q36 20 55 44.5t19 53.5v120H760ZM247-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47Zm466 0q-47 47-113 47-11 0-28-2.5t-28-5.5q27-32 41.5-71t14.5-81q0-42-14.5-81T544-792q14-5 28-6.5t28-1.5q66 0 113 47t47 113q0 66-47 113ZM120-240h480v-32q0-11-5.5-20T580-306q-54-27-109-40.5T360-360q-56 0-111 13.5T140-306q-9 5-14.5 14t-5.5 20v32Zm296.5-343.5Q440-607 440-640t-23.5-56.5Q393-720 360-720t-56.5 23.5Q280-673 280-640t23.5 56.5Q327-560 360-560t56.5-23.5ZM360-240Zm0-400Z"/></symbol>
+  <symbol id="ic-show_chart" viewBox="0 -960 960 960"><path d="m140-220-60-60 300-300 160 160 284-320 56 56-340 384-160-160-240 240Z"/></symbol>
+  <symbol id="ic-tab" viewBox="0 -960 960 960"><path d="M160-240h640v-320H520v-160H160v480Zm0 80q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80v-480 480Z"/></symbol>
+  <symbol id="ic-touch_app" viewBox="0 -960 960 960"><path d="M419-80q-28 0-52.5-12T325-126L107-403l19-20q20-21 48-25t52 11l74 45v-328q0-17 11.5-28.5T340-760q17 0 29 11.5t12 28.5v472l-97-60 104 133q6 7 14 11t17 4h221q33 0 56.5-23.5T720-240v-160q0-17-11.5-28.5T680-440H461v-80h219q50 0 85 35t35 85v160q0 66-47 113T640-80H419ZM167-620q-13-22-20-47.5t-7-52.5q0-83 58.5-141.5T340-920q83 0 141.5 58.5T540-720q0 27-7 52.5T513-620l-69-40q8-14 12-28.5t4-31.5q0-50-35-85t-85-35q-50 0-85 35t-35 85q0 17 4 31.5t12 28.5l-69 40Zm335 280Z"/></symbol>
+  <symbol id="ic-groups" viewBox="0 -960 960 960"><path d="M0-240v-63q0-43 44-70t116-27q13 0 25 .5t23 2.5q-14 21-21 44t-7 48v65H0Zm240 0v-65q0-32 17.5-58.5T307-410q32-20 76.5-30t96.5-10q53 0 97.5 10t76.5 30q32 20 49 46.5t17 58.5v65H240Zm540 0v-65q0-26-6.5-49T754-397q11-2 22.5-2.5t23.5-.5q72 0 116 26.5t44 70.5v63H780Zm-455-80h311q-10-20-55.5-35T480-370q-55 0-100.5 15T325-320ZM160-440q-33 0-56.5-23.5T80-520q0-34 23.5-57t56.5-23q34 0 57 23t23 57q0 33-23 56.5T160-440Zm640 0q-33 0-56.5-23.5T720-520q0-34 23.5-57t56.5-23q34 0 57 23t23 57q0 33-23 56.5T800-440Zm-320-40q-50 0-85-35t-35-85q0-51 35-85.5t85-34.5q51 0 85.5 34.5T600-600q0 50-34.5 85T480-480Zm0-80q17 0 28.5-11.5T520-600q0-17-11.5-28.5T480-640q-17 0-28.5 11.5T440-600q0 17 11.5 28.5T480-560Zm1 240Zm-1-280Z"/></symbol>
+  <symbol id="ic-widgets" viewBox="0 -960 960 960"><path d="M666-440 440-666l226-226 226 226-226 226Zm-546-80v-320h320v320H120Zm400 400v-320h320v320H520Zm-400 0v-320h320v320H120Zm80-480h160v-160H200v160Zm467 48 113-113-113-113-113 113 113 113Zm-67 352h160v-160H600v160Zm-400 0h160v-160H200v160Zm160-400Zm194-65ZM360-360Zm240 0Z"/></symbol>
+  <symbol id="ic-schedule" viewBox="0 -960 960 960"><path d="m612-292 56-56-148-148v-184h-80v216l172 172ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-400Zm0 320q133 0 226.5-93.5T800-480q0-133-93.5-226.5T480-800q-133 0-226.5 93.5T160-480q0 133 93.5 226.5T480-160Z"/></symbol>
+  <symbol id="ic-calendar_month" viewBox="0 -960 960 960"><path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Zm280 240q-17 0-28.5-11.5T440-440q0-17 11.5-28.5T480-480q17 0 28.5 11.5T520-440q0 17-11.5 28.5T480-400Zm-188.5-11.5Q280-423 280-440t11.5-28.5Q303-480 320-480t28.5 11.5Q360-457 360-440t-11.5 28.5Q337-400 320-400t-28.5-11.5ZM640-400q-17 0-28.5-11.5T600-440q0-17 11.5-28.5T640-480q17 0 28.5 11.5T680-440q0 17-11.5 28.5T640-400ZM480-240q-17 0-28.5-11.5T440-280q0-17 11.5-28.5T480-320q17 0 28.5 11.5T520-280q0 17-11.5 28.5T480-240Zm-188.5-11.5Q280-263 280-280t11.5-28.5Q303-320 320-320t28.5 11.5Q360-297 360-280t-11.5 28.5Q337-240 320-240t-28.5-11.5ZM640-240q-17 0-28.5-11.5T600-280q0-17 11.5-28.5T640-320q17 0 28.5 11.5T680-280q0 17-11.5 28.5T640-240Z"/></symbol>
+  <symbol id="ic-smartphone" viewBox="0 -960 960 960"><path d="M280-40q-33 0-56.5-23.5T200-120v-720q0-33 23.5-56.5T280-920h400q33 0 56.5 23.5T760-840v124q18 7 29 22t11 34v80q0 19-11 34t-29 22v404q0 33-23.5 56.5T680-40H280Zm0-80h400v-720H280v720Zm0 0v-720 720Zm228.5-611.5Q520-743 520-760t-11.5-28.5Q497-800 480-800t-28.5 11.5Q440-777 440-760t11.5 28.5Q463-720 480-720t28.5-11.5Z"/></symbol>
+  <symbol id="ic-table_chart" viewBox="0 -960 960 960"><path d="M760-120H200q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120ZM200-640h560v-120H200v120Zm100 80H200v360h100v-360Zm360 0v360h100v-360H660Zm-80 0H380v360h200v-360Z"/></symbol>
+  <symbol id="ic-auto_awesome" viewBox="0 -960 960 960"><path d="m760-600-50-110-110-50 110-50 50-110 50 110 110 50-110 50-50 110Zm0 560-50-110-110-50 110-50 50-110 50 110 110 50-110 50-50 110ZM360-160 260-380 40-480l220-100 100-220 100 220 220 100-220 100-100 220Zm0-194 40-86 86-40-86-40-40-86-40 86-86 40 86 40 40 86Zm0-126Z"/></symbol>
+  <symbol id="ic-refresh" viewBox="0 -960 960 960"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/></symbol>
+  <symbol id="ic-light_mode" viewBox="0 -960 960 960"><path d="M565-395q35-35 35-85t-35-85q-35-35-85-35t-85 35q-35 35-35 85t35 85q35 35 85 35t85-35Zm-226.5 56.5Q280-397 280-480t58.5-141.5Q397-680 480-680t141.5 58.5Q680-563 680-480t-58.5 141.5Q563-280 480-280t-141.5-58.5ZM200-440H40v-80h160v80Zm720 0H760v-80h160v80ZM440-760v-160h80v160h-80Zm0 720v-160h80v160h-80ZM256-650l-101-97 57-59 96 100-52 56Zm492 496-97-101 53-55 101 97-57 59Zm-98-550 97-101 59 57-100 96-56-52ZM154-212l101-97 55 53-97 101-59-57Zm326-268Z"/></symbol>
+  <symbol id="ic-dark_mode" viewBox="0 -960 960 960"><path d="M480-120q-150 0-255-105T120-480q0-150 105-255t255-105q14 0 27.5 1t26.5 3q-41 29-65.5 75.5T444-660q0 90 63 153t153 63q55 0 101-24.5t75-65.5q2 13 3 26.5t1 27.5q0 150-105 255T480-120Zm0-80q88 0 158-48.5T740-375q-20 5-40 8t-40 3q-123 0-209.5-86.5T364-660q0-20 3-40t8-40q-78 32-126.5 102T200-480q0 116 82 198t198 82Zm-10-270Z"/></symbol>
+  <symbol id="ic-logout" viewBox="0 -960 960 960"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></symbol>
+  <symbol id="ic-download" viewBox="0 -960 960 960"><path d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z"/></symbol>
+  <symbol id="ic-content_copy" viewBox="0 -960 960 960"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></symbol>
+  </svg>
+
+
   <!-- ログイン／初期設定ゲート -->
   <div class="gate" id="gate" hidden>
     <div class="box">
-      <div class="logo">ZONAVI</div>
+      <img class="gate-mark" src="./assets/zonavi-mark.svg" alt="" width="66" height="77">
+      <svg class="wordmark lg" viewBox="0 0 1138.06 231.42" role="img" aria-label="ZONAVI"><use href="#zonavi-wordmark"/></svg>
       <h1>利用状況ダッシュボード</h1>
       <div id="gate-body"></div>
     </div>
@@ -29,15 +64,18 @@
   <div id="app" hidden>
     <header class="topbar">
       <div class="brand">
-        <span class="logo">ZONAVI</span>
+        <img class="mark" src="./assets/zonavi-mark.svg" alt="" width="26" height="30">
+        <svg class="wordmark" viewBox="0 0 1138.06 231.42" role="img" aria-label="ZONAVI"><use href="#zonavi-wordmark"/></svg>
         <span class="sub">利用状況ダッシュボード</span>
       </div>
       <div class="controls">
         <span id="who" class="who"></span>
         <button class="btn" id="refresh" title="最新のデータを取得">
-          <span class="ic" aria-hidden="true">↻</span><span class="lb">更新</span></button>
-        <button class="btn icon-only" id="theme-toggle" aria-label="表示モードを切り替え">☀</button>
-        <button class="btn" id="signout"><span class="lb">ログアウト</span><span class="ic" aria-hidden="true">⏻</span></button>
+          <svg class="ic" aria-hidden="true"><use href="#ic-refresh"/></svg><span class="lb">更新</span></button>
+        <button class="btn icon-only" id="theme-toggle" aria-label="表示モードを切り替え">
+          <svg class="ic" aria-hidden="true"><use id="theme-ic" href="#ic-dark_mode"/></svg></button>
+        <button class="btn" id="signout">
+          <svg class="ic" aria-hidden="true"><use href="#ic-logout"/></svg><span class="lb">ログアウト</span></button>
       </div>
     </header>
 
@@ -72,6 +110,7 @@
 
       <details class="section" id="sec-summary" data-render="renderKPIs" open>
         <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-summarize"/></svg>
           <h2>サマリー</h2>
           <span class="hint">選択期間の合計。増減は直前の同じ長さの期間との比較。</span>
         </summary>
@@ -82,6 +121,7 @@
 
       <details class="section" id="sec-users" data-render="renderUsers" open>
         <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-group"/></svg>
           <h2>ユーザー数<span class="tag">実人数</span></h2>
           <span class="hint">同じ人がその週に5回使っても1人。上の「アクティブ端末」は延べなので、こちらより大きくなります。</span>
         </summary>
@@ -90,6 +130,7 @@
 
       <details class="section" id="sec-trend" data-render="renderTrend" open>
         <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-show_chart"/></svg>
           <h2>日別の推移</h2>
           <span class="hint">アクティブ端末は「その日アプリを開いた端末数」（1端末1日1カウント）。</span>
         </summary>
@@ -98,6 +139,7 @@
 
       <details class="section" id="sec-tabs" data-render="renderTabs" open>
         <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-tab"/></svg>
           <h2>タブ別の使われ方</h2>
           <span class="hint">タブを表示した回数。どの機能に人が集まっているかの入口。</span>
         </summary>
@@ -106,6 +148,7 @@
 
       <details class="section" id="sec-features" data-render="renderFeatures" open>
         <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-touch_app"/></svg>
           <h2>機能別の利用回数</h2>
           <span class="hint">タブごとにまとめた、実際に押された機能の回数。</span>
         </summary>
@@ -125,6 +168,7 @@
 
       <details class="section" id="sec-feature-users" data-render="renderFeatureUsers" open>
         <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-groups"/></svg>
           <h2>機能ごとの利用者数<span class="tag">実人数</span></h2>
           <span class="hint">回数ではなく「何台がその機能を使ったか」。少数が何度も押した機能と、多くの人が触った機能を区別できます。</span>
         </summary>
@@ -133,6 +177,7 @@
 
       <details class="section" id="sec-widgets" data-render="renderWidgets" open>
         <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-widgets"/></svg>
           <h2>ウィジェット</h2>
           <span class="hint">ホーム画面・ロック画面に置かれているウィジェットの実測。アプリを開かずに使われている分が見えます。</span>
         </summary>
@@ -141,6 +186,7 @@
 
       <details class="section" id="sec-hours" data-render="renderHours" open>
         <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-schedule"/></svg>
           <h2>時間帯別の利用</h2>
           <span class="hint">1日のどの時間に使われているか。通学時間・昼休みの山が見えます。</span>
         </summary>
@@ -149,6 +195,7 @@
 
       <details class="section" id="sec-weekdays" data-render="renderWeekdays" open>
         <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-calendar_month"/></svg>
           <h2>曜日別の利用</h2>
           <span class="hint">アクティブ端末を曜日で分けたもの。授業のある平日と休日の差が見えます。</span>
         </summary>
@@ -157,6 +204,7 @@
 
       <details class="section" id="sec-breakdowns" data-render="renderBreakdowns" open>
         <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-smartphone"/></svg>
           <h2>利用環境の内訳</h2>
           <span class="hint">アクティブ端末を軸にした内訳（1端末1日1カウント）。</span>
         </summary>
@@ -165,12 +213,14 @@
 
       <details class="section" id="sec-table" data-render="renderTable">
         <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-table_chart"/></svg>
           <h2>全データ表</h2>
           <span class="hint">グラフの元になった数値。色に頼らず読めます。</span>
         </summary>
         <div class="sec-body">
           <div class="toolbar">
-            <button class="btn ghost" id="export">CSV でダウンロード</button>
+            <button class="btn ghost" id="export">
+              <svg class="ic" aria-hidden="true"><use href="#ic-download"/></svg><span class="lb">CSV でダウンロード</span></button>
           </div>
           <div class="card"><div id="table"></div></div>
         </div>
@@ -178,6 +228,7 @@
 
       <details class="section" id="sec-report" data-render="renderReport" open>
         <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-auto_awesome"/></svg>
           <h2>レポート<span class="tag">自動分析</span></h2>
           <span class="hint">直近の期間と、その前の同じ長さの期間を比べて自動でまとめます。</span>
         </summary>
@@ -187,7 +238,8 @@
               <button data-window="week" aria-pressed="true">週次</button>
               <button data-window="month">月次</button>
             </div>
-            <button class="btn ghost" id="report-copy">レポートをコピー</button>
+            <button class="btn ghost" id="report-copy">
+              <svg class="ic" aria-hidden="true"><use href="#ic-content_copy"/></svg><span class="lb">レポートをコピー</span></button>
           </div>
           <div class="card"><div id="report"></div></div>
         </div>
