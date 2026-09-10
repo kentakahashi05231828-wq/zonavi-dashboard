@@ -4,12 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#294056">
   <title>ZONAVI 利用状況ダッシュボード</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22%23294056%22%2F%3E%3Crect%20x%3D%227%22%20%20y%3D%2217%22%20width%3D%224%22%20height%3D%229%22%20%20rx%3D%221.6%22%20fill%3D%22%235C97ED%22%2F%3E%3Crect%20x%3D%2214%22%20y%3D%2211%22%20width%3D%224%22%20height%3D%2215%22%20rx%3D%221.6%22%20fill%3D%22%232AA184%22%2F%3E%3Crect%20x%3D%2221%22%20y%3D%227%22%20%20width%3D%224%22%20height%3D%2219%22%20rx%3D%221.6%22%20fill%3D%22%23D98E1A%22%2F%3E%3C%2Fsvg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22%23294056%22%2F%3E%3Crect%20x%3D%227%22%20%20y%3D%2217%22%20width%3D%224%22%20height%3D%229%22%20%20rx%3D%221.6%22%20fill%3D%22%236192DF%22%2F%3E%3Crect%20x%3D%2214%22%20y%3D%2211%22%20width%3D%224%22%20height%3D%2215%22%20rx%3D%221.6%22%20fill%3D%22%2375C2A8%22%2F%3E%3Crect%20x%3D%2221%22%20y%3D%227%22%20%20width%3D%224%22%20height%3D%2219%22%20rx%3D%221.6%22%20fill%3D%22%23D98E1A%22%2F%3E%3C%2Fsvg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- DESIGN_RULES.md より：Google Fonts は Noto Sans JP のみ。Futura はシステムフォント -->
   <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Jost:wght@400;500;600&display=swap">
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -18,7 +20,7 @@
   <div class="gate" id="gate" hidden>
     <div class="box">
       <div class="logo">ZONAVI</div>
-      <h1 style="font-size:16px;margin:6px 0 14px">利用状況ダッシュボード</h1>
+      <h1>利用状況ダッシュボード</h1>
       <div id="gate-body"></div>
     </div>
   </div>
@@ -31,6 +33,17 @@
         <span class="sub">利用状況ダッシュボード</span>
       </div>
       <div class="controls">
+        <span id="who" class="who"></span>
+        <button class="btn" id="refresh" title="最新のデータを取得">
+          <span class="ic" aria-hidden="true">↻</span><span class="lb">更新</span></button>
+        <button class="btn icon-only" id="theme-toggle" aria-label="表示モードを切り替え">☀</button>
+        <button class="btn" id="signout"><span class="lb">ログアウト</span><span class="ic" aria-hidden="true">⏻</span></button>
+      </div>
+    </header>
+
+    <!-- 絞り込み。データ可視化の作法にならい、グラフの上に1行でまとめる -->
+    <div class="filterbar">
+      <div class="filters">
         <div class="seg" id="range-seg" role="group" aria-label="表示期間">
           <button data-days="7">7日</button>
           <button data-days="14">14日</button>
@@ -41,127 +54,147 @@
           <button data-source="analytics" aria-pressed="true">本番</button>
           <button data-source="analyticsDebug">開発</button>
         </div>
-        <button class="btn" id="refresh" title="最新のデータを取得">↻ 更新</button>
-        <button class="btn" id="theme-toggle" aria-label="表示モードを切り替え">☀</button>
-        <button class="btn" id="signout">ログアウト</button>
+        <button class="btn ghost" id="toggle-sections">すべて開く</button>
       </div>
-    </header>
+      <div class="meta">
+        <span id="range-note"></span><span id="updated"></span>
+      </div>
+    </div>
 
     <main>
-      <div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;font-size:12px;color:var(--ink-muted)">
-        <span id="range-note"></span><span id="updated"></span>
-        <span id="who" style="margin-left:auto"></span>
+      <div class="demo-banner" id="demo-banner" hidden>
+        <strong>デモ表示</strong>
+        <span>この画面の数値はすべて架空のサンプルです。実際の利用状況ではありません。</span>
+        <a href="./index.html">本番データを見る</a>
       </div>
 
-      <div class="card" id="load-error" hidden
-           style="margin-top:16px;border-color:var(--critical);color:var(--ink)"></div>
+      <div class="card" id="load-error" hidden></div>
 
-      <!-- KPI -->
-      <section class="section">
-        <header><h2>サマリー</h2>
-          <span class="hint">数値は選択期間の合計。増減は直前の同じ長さの期間との比較。</span></header>
-        <div class="grid kpi" id="kpis"></div>
-      </section>
+      <details class="section" id="sec-summary" data-render="renderKPIs" open>
+        <summary>
+          <h2>サマリー</h2>
+          <span class="hint">選択期間の合計。増減は直前の同じ長さの期間との比較。</span>
+        </summary>
+        <div class="sec-body">
+          <div class="grid kpi" id="kpis"></div>
+        </div>
+      </details>
 
-      <!-- ユーザー数（実人数） -->
-      <section class="section">
-        <header><h2>ユーザー数（実人数）</h2>
-          <span class="hint">同じ人がその週に5回使っても1人と数えます。上の「アクティブ端末」は延べなので、こちらより大きくなります。</span></header>
-        <div id="users"></div>
-      </section>
+      <details class="section" id="sec-users" data-render="renderUsers" open>
+        <summary>
+          <h2>ユーザー数<span class="tag">実人数</span></h2>
+          <span class="hint">同じ人がその週に5回使っても1人。上の「アクティブ端末」は延べなので、こちらより大きくなります。</span>
+        </summary>
+        <div class="sec-body"><div id="users"></div></div>
+      </details>
 
-      <!-- 推移 -->
-      <section class="section">
-        <header><h2>日別の推移</h2>
-          <span class="hint">アクティブ端末は「その日アプリを開いた端末数」（1端末1日1カウント）。</span></header>
-        <div class="card"><div id="trend"></div></div>
-      </section>
+      <details class="section" id="sec-trend" data-render="renderTrend" open>
+        <summary>
+          <h2>日別の推移</h2>
+          <span class="hint">アクティブ端末は「その日アプリを開いた端末数」（1端末1日1カウント）。</span>
+        </summary>
+        <div class="sec-body"><div class="card"><div id="trend"></div></div></div>
+      </details>
 
-      <!-- タブ -->
-      <section class="section">
-        <header><h2>タブ別の使われ方</h2>
-          <span class="hint">タブを表示した回数。どの機能に人が集まっているかの入口。</span></header>
-        <div class="card"><div id="tabs-chart"></div></div>
-      </section>
+      <details class="section" id="sec-tabs" data-render="renderTabs" open>
+        <summary>
+          <h2>タブ別の使われ方</h2>
+          <span class="hint">タブを表示した回数。どの機能に人が集まっているかの入口。</span>
+        </summary>
+        <div class="sec-body"><div class="card"><div id="tabs-chart"></div></div></div>
+      </details>
 
-      <!-- 機能 -->
-      <section class="section">
-        <header>
+      <details class="section" id="sec-features" data-render="renderFeatures" open>
+        <summary>
           <h2>機能別の利用回数</h2>
           <span class="hint">タブごとにまとめた、実際に押された機能の回数。</span>
-          <span class="spacer"></span>
-          <input id="feature-search" class="btn" type="search" placeholder="機能名で絞り込み"
-                 style="min-width:160px;cursor:text" aria-label="機能名で絞り込み">
-          <div class="seg" id="scope-seg" role="group" aria-label="集計範囲">
-            <button data-scope="range" aria-pressed="true">期間内</button>
-            <button data-scope="total">累計</button>
+        </summary>
+        <div class="sec-body">
+          <div class="toolbar">
+            <input id="feature-search" class="field" type="search" placeholder="機能名で絞り込み"
+                   aria-label="機能名で絞り込み">
+            <div class="seg" id="scope-seg" role="group" aria-label="集計範囲">
+              <button data-scope="range" aria-pressed="true">期間内</button>
+              <button data-scope="total">累計</button>
+            </div>
+            <button class="btn ghost" id="toggle-all">すべて表示</button>
           </div>
-          <button class="btn" id="toggle-all">すべて表示</button>
-        </header>
-        <div class="card"><div id="features"></div></div>
-      </section>
+          <div class="card"><div id="features"></div></div>
+        </div>
+      </details>
 
-      <!-- 機能の利用率（人数ベース） -->
-      <section class="section">
-        <header><h2>機能ごとの利用者数</h2>
-          <span class="hint">回数ではなく「何台がその機能を使ったか」。1端末1日1カウントなので、少数が何度も押した機能と、多くの人が触った機能を区別できます。</span></header>
-        <div class="card"><div id="feature-users"></div></div>
-      </section>
+      <details class="section" id="sec-feature-users" data-render="renderFeatureUsers" open>
+        <summary>
+          <h2>機能ごとの利用者数<span class="tag">実人数</span></h2>
+          <span class="hint">回数ではなく「何台がその機能を使ったか」。少数が何度も押した機能と、多くの人が触った機能を区別できます。</span>
+        </summary>
+        <div class="sec-body"><div class="card"><div id="feature-users"></div></div></div>
+      </details>
 
-      <!-- ウィジェット -->
-      <section class="section">
-        <header><h2>ウィジェット</h2>
-          <span class="hint">ホーム画面・ロック画面に置かれているウィジェットの実測。アプリを開かずに使われている分が見えます。</span></header>
-        <div id="widgets"></div>
-      </section>
+      <details class="section" id="sec-widgets" data-render="renderWidgets" open>
+        <summary>
+          <h2>ウィジェット</h2>
+          <span class="hint">ホーム画面・ロック画面に置かれているウィジェットの実測。アプリを開かずに使われている分が見えます。</span>
+        </summary>
+        <div class="sec-body"><div id="widgets"></div></div>
+      </details>
 
-      <!-- 時間帯 -->
-      <section class="section">
-        <header><h2>時間帯別の利用</h2>
-          <span class="hint">1日のどの時間に使われているか。通学時間・昼休みの山が見える。</span></header>
-        <div class="card"><div id="hours"></div></div>
-      </section>
+      <details class="section" id="sec-hours" data-render="renderHours" open>
+        <summary>
+          <h2>時間帯別の利用</h2>
+          <span class="hint">1日のどの時間に使われているか。通学時間・昼休みの山が見えます。</span>
+        </summary>
+        <div class="sec-body"><div class="card"><div id="hours"></div></div></div>
+      </details>
 
-      <!-- 曜日 -->
-      <section class="section">
-        <header><h2>曜日別の利用</h2>
-          <span class="hint">アクティブ端末を曜日で分けたもの。授業のある平日と休日の差が見えます。</span></header>
-        <div class="card"><div id="weekdays"></div></div>
-      </section>
+      <details class="section" id="sec-weekdays" data-render="renderWeekdays" open>
+        <summary>
+          <h2>曜日別の利用</h2>
+          <span class="hint">アクティブ端末を曜日で分けたもの。授業のある平日と休日の差が見えます。</span>
+        </summary>
+        <div class="sec-body"><div class="card"><div id="weekdays"></div></div></div>
+      </details>
 
-      <!-- 内訳 -->
-      <section class="section">
-        <header><h2>利用環境の内訳</h2>
-          <span class="hint">アクティブ端末を軸にした内訳（1端末1日1カウント）。</span></header>
-        <div class="grid three" id="breakdowns"></div>
-      </section>
+      <details class="section" id="sec-breakdowns" data-render="renderBreakdowns" open>
+        <summary>
+          <h2>利用環境の内訳</h2>
+          <span class="hint">アクティブ端末を軸にした内訳（1端末1日1カウント）。</span>
+        </summary>
+        <div class="sec-body"><div class="grid three" id="breakdowns"></div></div>
+      </details>
 
-      <!-- 表 -->
-      <section class="section">
-        <header><h2>全データ表</h2>
+      <details class="section" id="sec-table" data-render="renderTable">
+        <summary>
+          <h2>全データ表</h2>
           <span class="hint">グラフの元になった数値。色に頼らず読めます。</span>
-          <span class="spacer"></span>
-          <button class="btn" id="export">CSV でダウンロード</button></header>
-        <div class="card"><div id="table"></div></div>
-      </section>
-
-      <!-- 自動分析レポート -->
-      <section class="section">
-        <header>
-          <h2>レポート（自動分析）</h2>
-          <span class="hint">直近の期間と、その前の同じ長さの期間を比べて自動でまとめます。</span>
-          <span class="spacer"></span>
-          <div class="seg" id="report-seg" role="group" aria-label="比較の単位">
-            <button data-window="week" aria-pressed="true">週次</button>
-            <button data-window="month">月次</button>
+        </summary>
+        <div class="sec-body">
+          <div class="toolbar">
+            <button class="btn ghost" id="export">CSV でダウンロード</button>
           </div>
-          <button class="btn" id="report-copy">レポートをコピー</button>
-        </header>
-        <div class="card"><div id="report"></div></div>
-      </section>
+          <div class="card"><div id="table"></div></div>
+        </div>
+      </details>
 
-      <footer style="margin-top:40px;font-size:12px;color:var(--ink-muted);line-height:1.9">
-        <p style="margin:0">
+      <details class="section" id="sec-report" data-render="renderReport" open>
+        <summary>
+          <h2>レポート<span class="tag">自動分析</span></h2>
+          <span class="hint">直近の期間と、その前の同じ長さの期間を比べて自動でまとめます。</span>
+        </summary>
+        <div class="sec-body">
+          <div class="toolbar">
+            <div class="seg" id="report-seg" role="group" aria-label="比較の単位">
+              <button data-window="week" aria-pressed="true">週次</button>
+              <button data-window="month">月次</button>
+            </div>
+            <button class="btn ghost" id="report-copy">レポートをコピー</button>
+          </div>
+          <div class="card"><div id="report"></div></div>
+        </div>
+      </details>
+
+      <footer>
+        <p>
           集計は Firebase Realtime Database の <code>analytics</code> ノードに保存された匿名カウンタです。
           個人を特定できる情報（UID・メールアドレス・端末ID）は一切含まれません。
           アプリ側で「設定 → 利用状況の記録」を OFF にした端末は集計対象外になります。

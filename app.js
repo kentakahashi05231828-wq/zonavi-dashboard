@@ -30,6 +30,11 @@ const svgEl = (tag, attrs = {}) => {
   return n;
 };
 const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+/**
+ * グラフ SVG の幅の与え方。
+ * 収まらないときに縮めるとラベルが読めなくなるので、実寸のまま .chart 側で横スクロールさせる。
+ */
+const chartWidth = (W, avail) => (W > avail ? `width:${W}px` : "width:100%;max-width:100%");
 const tabColor = id => cssVar(`--tab-${id}`) || cssVar("--tab-app");
 
 /** JST の日付キー（アプリ側と同じ基準） */
@@ -250,15 +255,17 @@ const WEEKS_SHOWN = 12, MONTHS_SHOWN = 6;
 /** 期間の棒グラフ。進行中の期間は薄く塗って「まだ増える」ことを示す */
 function renderPeriodBars(host, rows, ariaLabel) {
   const max = Math.max(1, ...rows.map(r => r.value));
-  const avail = Math.max(520, host.clientWidth || 760);
-  const W = Math.max(avail, rows.length * 54), H = 200;
   const pad = { t: 14, r: 10, b: 40, l: 46 };
+  // 1本あたり最低 56px を確保する。入りきらないときは縮めずに横スクロールさせる
+  const avail = Math.max(280, host.clientWidth || 760);
+  const W = Math.max(avail, rows.length * 56 + pad.l + pad.r), H = 200;
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
-  const bw = iw / rows.length;
+  // 本数が少ないと1本が間延びするので、幅に上限を設けて中央に寄せる
+  const bw = Math.min(iw / rows.length, 76);
+  const x0 = pad.l + (iw - bw * rows.length) / 2;
   const niceMax = niceCeil(max);
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img",
-                             style: `max-width:100%;${W > avail ? "" : "width:100%;"}`,
-                             "aria-label": ariaLabel });
+                             style: chartWidth(W, avail), "aria-label": ariaLabel });
   for (let i = 0; i <= 2; i++) {
     const v = (niceMax / 2) * i, yy = pad.t + ih - (v / niceMax) * ih;
     svg.append(svgEl("line", { class: "tick-line", x1: pad.l, x2: W - pad.r, y1: yy, y2: yy }));
@@ -267,7 +274,7 @@ function renderPeriodBars(host, rows, ariaLabel) {
   }
   rows.forEach((r, i) => {
     const h = (r.value / niceMax) * ih;
-    const x = pad.l + bw * i + bw * 0.16;
+    const x = x0 + bw * i + bw * 0.16;
     const rect = svgEl("rect", {
       x, y: pad.t + ih - h, width: bw * 0.68, height: Math.max(r.value > 0 ? 2 : 0, h), rx: 4,
       fill: tabColor("home"), opacity: r.inProgress ? 0.42 : 1,
@@ -281,15 +288,15 @@ function renderPeriodBars(host, rows, ariaLabel) {
     rect.addEventListener("pointerleave", hideTip);
     svg.append(rect);
 
-    const lbl = svgEl("text", { class: "axis-label", x: pad.l + bw * i + bw / 2, y: H - 22, "text-anchor": "middle" });
+    const lbl = svgEl("text", { class: "axis-label", x: x0 + bw * i + bw / 2, y: H - 22, "text-anchor": "middle" });
     lbl.textContent = r.label; svg.append(lbl);
     if (r.value > 0) {
-      const v = svgEl("text", { class: "axis-label", x: pad.l + bw * i + bw / 2,
+      const v = svgEl("text", { class: "axis-label", x: x0 + bw * i + bw / 2,
                                 y: pad.t + ih - h - 6, "text-anchor": "middle", fill: cssVar("--ink-2") });
       v.textContent = fmt(r.value); svg.append(v);
     }
     if (r.inProgress) {
-      const t = svgEl("text", { class: "axis-label", x: pad.l + bw * i + bw / 2, y: H - 8, "text-anchor": "middle" });
+      const t = svgEl("text", { class: "axis-label", x: x0 + bw * i + bw / 2, y: H - 8, "text-anchor": "middle" });
       t.textContent = "集計中"; svg.append(t);
     }
   });
@@ -367,21 +374,21 @@ function renderUsers() {
     return;
   }
 
-  const card = (title, hint, rows, aria) => {
+  const card = (title, hint) => {
+    const box = el("div", {});
     const c = el("div", { class: "card" },
       el("h3", { style: "font-size:13px;margin-bottom:4px" }, title),
-      el("p", { class: "hint", style: "margin:0 0 12px" }, hint));
-    const box = el("div", {});
-    c.append(box);
-    renderPeriodBars(box, rows, aria);
-    return c;
+      el("p", { class: "hint", style: "margin:0 0 12px" }, hint), box);
+    return { c, box };
   };
-  host.append(el("div", { class: "grid", style: "margin-top:14px;gap:14px" },
-    card(`週間ユーザー数（直近${WEEKS_SHOWN}週）`,
-         "同じ人がその週に何回開いても1人。横軸はその週の月曜日。", weekRows, "週ごとの実利用者数"),
-    card(`月間ユーザー数（直近${MONTHS_SHOWN}ヶ月）`,
-         "同じ人がその月に何回開いても1人。", monthRows, "月ごとの実利用者数"),
-  ));
+  const wk = card(`週間ユーザー数（直近${WEEKS_SHOWN}週）`,
+                  "同じ人がその週に何回開いても1人。横軸はその週の月曜日。");
+  const mo = card(`月間ユーザー数（直近${MONTHS_SHOWN}ヶ月）`,
+                  "同じ人がその月に何回開いても1人。");
+  host.append(el("div", { class: "grid", style: "margin-top:14px;gap:14px" }, wk.c, mo.c));
+  // 幅は DOM に入ってからでないと測れないので、append の後に描く
+  renderPeriodBars(wk.box, weekRows, "週ごとの実利用者数");
+  renderPeriodBars(mo.box, monthRows, "月ごとの実利用者数");
   host.append(el("p", { class: "hint", style: "margin-top:12px" },
     "「サマリー」のアクティブ端末は延べ（1端末1日1カウント）なので、ここの実人数より大きくなります。どちらも正しく、意味が違います。"));
 }
@@ -416,7 +423,7 @@ function renderTrend() {
   const y = v => pad.t + ih - (v / niceMax) * ih;
 
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img",
-                             style: `max-width:100%;${W > avail ? "" : "width:100%;"}`,
+                             style: chartWidth(W, avail),
                              "aria-label": "日別のアクティブ端末とセッション数の推移" });
 
   // グリッドと y 軸
@@ -588,8 +595,9 @@ function renderHours() {
   const W = Math.max(560, host.clientWidth || 720), H = 170, pad = { t: 10, r: 8, b: 26, l: 36 };
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   const bw = iw / 24;
+  const avail = Math.max(320, host.clientWidth || 720);
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img",
-                             style: "width:100%;max-width:100%", "aria-label": "時間帯別の操作回数" });
+                             style: chartWidth(W, avail), "aria-label": "時間帯別の操作回数" });
   const niceMax = niceCeil(max);
   for (let i = 0; i <= 2; i++) {
     const v = (niceMax / 2) * i, yy = pad.t + ih - (v / niceMax) * ih;
@@ -1409,9 +1417,58 @@ function showLoadError(e) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// セクションの開閉
+//
+// スマホだと全部を縦に並べると延々スクロールすることになるので、
+// <details> で畳めるようにする。閉じている間は幅が 0 なので、
+// 開いた時点でそのセクションのグラフを描き直して幅を合わせる。
+// ─────────────────────────────────────────────────────────────
+const SECTION_STATE_KEY = "zonavi.dash.sections";
+
+function initSections() {
+  const renderers = {
+    renderKPIs, renderUsers, renderTrend, renderTabs, renderFeatures,
+    renderFeatureUsers, renderWidgets, renderHours, renderWeekdays,
+    renderBreakdowns, renderTable, renderReport,
+  };
+  const secs = $$("details.section");
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(SECTION_STATE_KEY) || "null"); } catch { /* 壊れていたら既定に戻す */ }
+  const narrow = matchMedia("(max-width: 720px)").matches;
+
+  secs.forEach((sec, i) => {
+    if (saved && sec.id in saved) sec.open = !!saved[sec.id];
+    else if (narrow) sec.open = i < 2;      // スマホの初期状態はサマリーとユーザー数だけ
+    sec.addEventListener("toggle", () => {
+      persistSections(secs);
+      if (sec.open) renderers[sec.dataset.render]?.();
+      syncToggleLabel(secs);
+    });
+  });
+
+  $("#toggle-sections").addEventListener("click", () => {
+    const opening = secs.some(s => !s.open);
+    secs.forEach(s => { s.open = opening; });   // toggle イベント側で保存と再描画が走る
+  });
+  syncToggleLabel(secs);
+}
+
+function persistSections(secs) {
+  const map = {};
+  for (const s of secs) map[s.id] = s.open;
+  try { localStorage.setItem(SECTION_STATE_KEY, JSON.stringify(map)); } catch { /* 保存できなくても動作に影響はない */ }
+}
+
+function syncToggleLabel(secs) {
+  const btn = $("#toggle-sections");
+  if (btn) btn.textContent = secs.some(s => !s.open) ? "すべて開く" : "すべて閉じる";
+}
+
+// ─────────────────────────────────────────────────────────────
 // 起動
 // ─────────────────────────────────────────────────────────────
 function wireControls() {
+  initSections();
   $$("#range-seg button").forEach(b => b.addEventListener("click", () => {
     state.rangeDays = Number(b.dataset.days);
     $$("#range-seg button").forEach(x => x.setAttribute("aria-pressed", x === b));
@@ -1472,7 +1529,8 @@ async function main() {
   if (state.demo) {
     $("#gate").hidden = true;
     $("#app").hidden = false;
-    $("#who").textContent = "デモ表示（サンプルデータ）";
+    $("#demo-banner").hidden = false;      // 本物の数字と取り違えないように大きく出す
+    $("#who").textContent = "デモ表示";
     $("#signout").hidden = true;
     $("#source-seg").hidden = true;
     wireControls();
@@ -1703,7 +1761,12 @@ let resizeTimer;
 addEventListener("resize", () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
-    if (!$("#app").hidden) { renderUsers(); renderTrend(); renderHours(); }
+    if ($("#app").hidden) return;
+    // 開いているセクションだけ描き直す（閉じたままだと幅が測れない）
+    const open = id => $(id)?.open;
+    if (open("#sec-users"))  renderUsers();
+    if (open("#sec-trend"))  renderTrend();
+    if (open("#sec-hours"))  renderHours();
   }, 180);
 });
 
