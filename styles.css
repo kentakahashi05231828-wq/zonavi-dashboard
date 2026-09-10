@@ -169,12 +169,12 @@ code {
   -webkit-backdrop-filter: saturate(180%) blur(14px);
   border-bottom: 1px solid var(--border);
 }
-.brand { display: flex; align-items: baseline; gap: var(--s-md); margin-right: auto; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; }
 .brand .logo {
   font-family: var(--font-en); font-size: 21px; font-weight: 600;
   letter-spacing: .12em; color: var(--accent);
 }
-.brand .sub { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.brand .sub { font-size: 12px; color: var(--ink-2); white-space: nowrap; padding-left: 2px; }
 .controls { display: flex; align-items: center; gap: var(--s-sm); }
 .controls .who {
   font-family: var(--font-en); font-size: 11px; color: var(--ink-muted);
@@ -247,7 +247,9 @@ main { max-width: var(--max-width); margin: 0 auto; padding: var(--s-xl) var(--s
 .section:first-of-type { border-top: 1px solid var(--border); }
 .section > summary {
   list-style: none; cursor: pointer; position: relative;
-  display: flex; align-items: baseline; gap: var(--s-md); flex-wrap: wrap;
+  /* アイコン｜見出し｜補足 の3列。折り返してもアイコンが上に外れない */
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center; column-gap: var(--s-md);
   padding: var(--s-lg) 34px var(--s-lg) 0;
 }
 .section > summary::-webkit-details-marker { display: none; }
@@ -257,7 +259,7 @@ main { max-width: var(--max-width); margin: 0 auto; padding: var(--s-xl) var(--s
   transition: color .16s;
 }
 .section > summary .hint {
-  font-size: 12px; color: var(--ink-muted); font-weight: 400; flex: 1 1 240px; min-width: 0;
+  font-size: 12px; color: var(--ink-muted); font-weight: 400; min-width: 0;
 }
 /* 開閉キャレット */
 .section > summary::after {
@@ -286,6 +288,9 @@ main { max-width: var(--max-width); margin: 0 auto; padding: var(--s-xl) var(--s
   border-radius: var(--r-lg); padding: var(--s-lg) 18px;
 }
 .grid { display: grid; gap: var(--s-md); }
+/* グリッドの子は既定の min-width:auto だと中身の実寸まで広がってしまい、
+   横スクロールさせたいグラフがページごと押し広げる。0 にして .chart 側で受ける */
+.grid > * { min-width: 0; }
 .grid.kpi   { grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); }
 .grid.two   { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
 .grid.three { grid-template-columns: repeat(auto-fit, minmax(264px, 1fr)); }
@@ -446,9 +451,14 @@ main > footer p { margin: 0; }
   .seg button { padding: 5px 11px; }
 
   main { padding: var(--s-md) var(--s-lg) 56px; }
-  .section > summary { padding: var(--s-md) 30px var(--s-md) 0; gap: 5px; }
-  .section > summary h2 { font-size: 14.5px; flex: 1 1 100%; }
-  .section > summary .hint { flex: 1 1 100%; font-size: 11.5px; line-height: 1.65; }
+  .section > summary {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 10px; row-gap: 2px;
+    padding: var(--s-md) 28px var(--s-md) 0;
+  }
+  .section > summary .sec-ic { grid-area: 1 / 1; }
+  .section > summary h2     { grid-area: 1 / 2; font-size: 14.5px; }
+  .section > summary .hint  { grid-area: 2 / 2; font-size: 11.5px; line-height: 1.65; }
   .sec-body { padding-bottom: var(--s-lg); }
 
   .grid { gap: var(--s-sm); }
@@ -494,13 +504,14 @@ main > footer p { margin: 0; }
 }
 .section > summary:hover .sec-ic { color: var(--accent); }
 
-.brand .mark { height: 30px; width: auto; display: block; flex: none; }
-.wordmark { height: 17px; width: auto; color: var(--logo); display: block; flex: none; }
+/* マークとワードマークは同じ高さに揃える */
+.brand .mark { height: 21px; width: auto; display: block; flex: none; }
+.wordmark { height: 21px; width: auto; color: var(--logo); display: block; flex: none; }
 .gate-mark { display: block; margin: 0 auto 14px; }
 .wordmark.lg { height: 30px; margin: 0 auto; }
 
 @media (max-width: 720px) {
-  .brand .mark { height: 26px; }
-  .wordmark { height: 15px; }
+  .brand .mark { height: 19px; }
+  .wordmark { height: 19px; }
   .sec-ic { width: 18px; height: 18px; }
 }
