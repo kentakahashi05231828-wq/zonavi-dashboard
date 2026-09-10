@@ -91,13 +91,104 @@ export const SCREENS = {
   settings: "設定",
 };
 
+/**
+ * 機種識別子 → 製品名。
+ * RTDB には "," を "_" に置き換えた形（iPhone18_3）で入る。
+ * ここに無いキーは識別子のまま表示されるので、新機種が出ても表示は壊れない。
+ * 新機種を足すときは Apple のモデル識別子を確認して 1 行追加する。
+ */
+export const DEVICE_MODELS = {
+  // ── iPhone ──
+  iPhone10_1: "iPhone 8",        iPhone10_4: "iPhone 8",
+  iPhone10_2: "iPhone 8 Plus",   iPhone10_5: "iPhone 8 Plus",
+  iPhone10_3: "iPhone X",        iPhone10_6: "iPhone X",
+  iPhone11_2: "iPhone XS",
+  iPhone11_4: "iPhone XS Max",   iPhone11_6: "iPhone XS Max",
+  iPhone11_8: "iPhone XR",
+  iPhone12_1: "iPhone 11",
+  iPhone12_3: "iPhone 11 Pro",
+  iPhone12_5: "iPhone 11 Pro Max",
+  iPhone12_8: "iPhone SE(第2世代)",
+  iPhone13_1: "iPhone 12 mini",
+  iPhone13_2: "iPhone 12",
+  iPhone13_3: "iPhone 12 Pro",
+  iPhone13_4: "iPhone 12 Pro Max",
+  iPhone14_2: "iPhone 13 Pro",
+  iPhone14_3: "iPhone 13 Pro Max",
+  iPhone14_4: "iPhone 13 mini",
+  iPhone14_5: "iPhone 13",
+  iPhone14_6: "iPhone SE(第3世代)",
+  iPhone14_7: "iPhone 14",
+  iPhone14_8: "iPhone 14 Plus",
+  iPhone15_2: "iPhone 14 Pro",
+  iPhone15_3: "iPhone 14 Pro Max",
+  iPhone15_4: "iPhone 15",
+  iPhone15_5: "iPhone 15 Plus",
+  iPhone16_1: "iPhone 15 Pro",
+  iPhone16_2: "iPhone 15 Pro Max",
+  iPhone17_1: "iPhone 16 Pro",
+  iPhone17_2: "iPhone 16 Pro Max",
+  iPhone17_3: "iPhone 16",
+  iPhone17_4: "iPhone 16 Plus",
+  iPhone17_5: "iPhone 16e",
+  iPhone18_1: "iPhone 17 Pro",
+  iPhone18_2: "iPhone 17 Pro Max",
+  iPhone18_3: "iPhone 17",
+  iPhone18_4: "iPhone Air",
+
+  // ── iPad ──
+  iPad11_1: "iPad mini(第5世代)",  iPad11_2: "iPad mini(第5世代)",
+  iPad11_3: "iPad Air(第3世代)",   iPad11_4: "iPad Air(第3世代)",
+  iPad11_6: "iPad(第8世代)",       iPad11_7: "iPad(第8世代)",
+  iPad12_1: "iPad(第9世代)",       iPad12_2: "iPad(第9世代)",
+  iPad13_1: "iPad Air(第4世代)",   iPad13_2: "iPad Air(第4世代)",
+  iPad13_16: "iPad Air(第5世代)",  iPad13_17: "iPad Air(第5世代)",
+  iPad13_18: "iPad(第10世代)",     iPad13_19: "iPad(第10世代)",
+  iPad14_1: "iPad mini(第6世代)",  iPad14_2: "iPad mini(第6世代)",
+  iPad14_8: "iPad Air 11(M2)",     iPad14_9: "iPad Air 11(M2)",
+  iPad14_10: "iPad Air 13(M2)",    iPad14_11: "iPad Air 13(M2)",
+  iPad16_1: "iPad mini(A17 Pro)",  iPad16_2: "iPad mini(A17 Pro)",
+  iPad16_3: "iPad Pro 11(M4)",     iPad16_4: "iPad Pro 11(M4)",
+  iPad16_5: "iPad Pro 13(M4)",     iPad16_6: "iPad Pro 13(M4)",
+};
+
+/** 識別子を製品名にする。未知のキーは識別子をそのまま返す（"," 表記に戻す） */
+export const deviceName = key =>
+  DEVICE_MODELS[key] ?? String(key).replace(/_(?=\d)/, ",");
+
+/** 曜日キー（0=日曜、JST） */
+export const DOW_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+
+/** 通知許可の状態 */
+export const NOTIF_LABELS = {
+  granted:        "許可",
+  provisional:    "仮許可",
+  denied:         "拒否",
+  ephemeral:      "一時的",
+  notDetermined:  "未選択",
+};
+
+/** 画面サイズ区分 */
+export const DISPLAY_LABELS = {
+  small:    "小(SE・mini)",
+  standard: "標準",
+  large:    "大(Plus・Pro Max)",
+  tablet:   "タブレット",
+};
+
 /** 内訳カードの表示設定 */
 export const BREAKDOWNS = [
-  { key: "versions", label: "アプリバージョン", format: v => v.replace(/_/g, ".") },
-  { key: "os",       label: "iOS バージョン",   format: v => `iOS ${v}` },
-  { key: "device",   label: "端末",             format: v => v },
-  { key: "lang",     label: "表示言語",         format: v => ({ ja: "日本語", en: "English" }[v] ?? v) },
-  { key: "theme",    label: "表示モード",       format: v => ({ light: "ライト", dark: "ダーク" }[v] ?? v) },
+  { key: "model",    label: "機種",                 format: deviceName, limit: 10, since: true },
+  { key: "versions", label: "アプリバージョン",      format: v => v.replace(/_/g, ".") },
+  { key: "osFull",   label: "iOS バージョン（詳細）", format: v => `iOS ${v.replace(/_/g, ".")}`, since: true },
+  { key: "os",       label: "iOS メジャーバージョン", format: v => `iOS ${v}` },
+  { key: "device",   label: "端末種別",             format: v => v },
+  { key: "display",  label: "画面サイズ",           format: v => DISPLAY_LABELS[v] ?? v, since: true,
+    order: ["small", "standard", "large", "tablet"] },
+  { key: "notif",    label: "通知の許可状況",        format: v => NOTIF_LABELS[v] ?? v, since: true,
+    order: ["granted", "provisional", "denied", "ephemeral", "notDetermined"] },
+  { key: "lang",     label: "表示言語",             format: v => ({ ja: "日本語", en: "English" }[v] ?? v) },
+  { key: "theme",    label: "表示モード",           format: v => ({ light: "ライト", dark: "ダーク" }[v] ?? v) },
   {
     key: "tenure", label: "インストールからの経過", format: v =>
       ({ d0: "当日", d1_6: "1〜6日", d7_29: "7〜29日", d30plus: "30日以上" }[v] ?? v),

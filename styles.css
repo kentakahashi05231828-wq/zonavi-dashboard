@@ -225,11 +225,44 @@ tbody tr:hover { background: var(--surface-2); }
 @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .5 } }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* ── 自動分析レポート ── */
+#report .headline { font-size: 15px; line-height: 1.85; margin: 0 0 6px; }
+#report .delta.up   { color: var(--good); }
+#report .delta.down { color: var(--critical); }
+#report .delta.flat { color: var(--ink-muted); }
+#report .report-h { font-size: 11px; font-weight: 700; letter-spacing: .06em;
+                    margin: 26px 0 12px; color: var(--ink-muted); }
+
+.insight { border: 1px solid var(--border); border-left-width: 3px; border-radius: var(--r-sm);
+           background: var(--surface); padding: 14px 16px; margin-bottom: 10px; }
+.insight.warn { border-left-color: var(--critical); }
+.insight.good { border-left-color: var(--good); }
+.insight.info { border-left-color: var(--tab-links); }
+.insight .ttl { font-size: 13.5px; font-weight: 700; display: flex; align-items: center;
+                gap: 9px; flex-wrap: wrap; line-height: 1.6; }
+.insight .badge { font-size: 10px; font-weight: 700; letter-spacing: .06em; padding: 2px 8px;
+                  border-radius: 999px; background: var(--surface-2); color: var(--ink-muted); flex: none; }
+.insight.warn .badge { background: color-mix(in srgb, var(--critical) 14%, transparent); color: var(--critical); }
+.insight.good .badge { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+.insight .body { font-size: 13px; color: var(--ink-2); line-height: 1.85; margin: 7px 0 0; }
+.insight .act  { font-size: 13px; color: var(--ink-2); line-height: 1.8; margin: 9px 0 0;
+                 display: flex; gap: 9px; align-items: baseline; }
+.insight .act > span { font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--ink-muted);
+                       border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px;
+                       flex: none; white-space: nowrap; }
+
+.actions { margin: 0; padding-left: 22px; display: grid; gap: 12px; }
+.actions li { font-size: 13px; line-height: 1.8; }
+.actions li strong { display: block; }
+.actions li span { color: var(--ink-2); }
+
 @media (max-width: 640px) {
   main { padding: 16px 12px 60px; }
   .grid { gap: 10px; }
   .card { padding: 14px 15px; }
   .topbar { padding: 10px 14px; }
   .rank-row { grid-template-columns: minmax(110px, 1fr) 1.2fr auto; }
+  .insight .act { display: block; }
+  .insight .act > span { display: inline-block; margin-right: 8px; }
   .kpi-tile .value { font-size: 28px; }
 }

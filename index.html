@@ -56,6 +56,21 @@
       <div class="card" id="load-error" hidden
            style="margin-top:16px;border-color:var(--critical);color:var(--ink)"></div>
 
+      <!-- 自動分析レポート -->
+      <section class="section">
+        <header>
+          <h2>レポート</h2>
+          <span class="hint">直近の期間と、その前の同じ長さの期間を比べて自動でまとめます。</span>
+          <span class="spacer"></span>
+          <div class="seg" id="report-seg" role="group" aria-label="比較の単位">
+            <button data-window="week" aria-pressed="true">週次</button>
+            <button data-window="month">月次</button>
+          </div>
+          <button class="btn" id="report-copy">レポートをコピー</button>
+        </header>
+        <div class="card"><div id="report"></div></div>
+      </section>
+
       <!-- KPI -->
       <section class="section">
         <header><h2>サマリー</h2>
@@ -99,6 +114,13 @@
         <header><h2>時間帯別の利用</h2>
           <span class="hint">1日のどの時間に使われているか。通学時間・昼休みの山が見える。</span></header>
         <div class="card"><div id="hours"></div></div>
+      </section>
+
+      <!-- 曜日 -->
+      <section class="section">
+        <header><h2>曜日別の利用</h2>
+          <span class="hint">アクティブ端末を曜日で分けたもの。授業のある平日と休日の差が見えます。</span></header>
+        <div class="card"><div id="weekdays"></div></div>
       </section>
 
       <!-- 内訳 -->

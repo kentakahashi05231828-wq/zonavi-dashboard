@@ -1,5 +1,5 @@
 import { firebaseConfig, isConfigured } from "./firebase-config.js";
-import { TABS, APP_GROUP, EVENTS, BREAKDOWNS, lookupEvent, tabOf } from "./catalog.js";
+import { TABS, APP_GROUP, EVENTS, BREAKDOWNS, DOW_LABELS, lookupEvent, tabOf } from "./catalog.js";
 
 // ─────────────────────────────────────────────────────────────
 // ユーティリティ
@@ -51,6 +51,8 @@ const state = {
   rangeDays: 30,
   source: localStorage.getItem("zonavi.dash.source") || "analytics",  // analytics | analyticsDebug
   scope: "range",           // range | total  （機能ランキングの集計範囲）
+  reportWindow: localStorage.getItem("zonavi.dash.reportWindow") || "week",  // week | month
+  report: null,
   showAllEvents: false,
   daily: {},                // { "2026-09-05": {...} }
   totals: {},
@@ -116,8 +118,8 @@ async function loadData() {
   if (state.demo) { buildDemoData(); state.updatedAt = new Date(); return; }
   const { ref, query, orderByKey, startAt, get } = state.fb;
   const today = dayKey(new Date());
-  // 前期間との比較のため、表示範囲の 2 倍さかのぼって取得する
-  const from = shiftDays(today, -(state.rangeDays * 2 - 1));
+  // 前期間との比較（表示範囲の 2 倍）と、レポートの月次比較（28日×2）の両方に足りる分をとる
+  const from = shiftDays(today, -(Math.max(state.rangeDays * 2, 56) - 1));
   const dailySnap = await get(query(ref(state.db, `${state.source}/daily`), orderByKey(), startAt(from)));
   const totalSnap = await get(ref(state.db, `${state.source}/totals`));
   state.daily  = dailySnap.val() || {};
@@ -434,11 +436,15 @@ function renderBreakdowns() {
     const total = rows.reduce((a, r) => a + r.v, 0);
     const card = el("div", { class: "card" },
       el("h3", { style: "font-size:13px;margin-bottom:12px" }, b.label));
-    if (!rows.length) card.append(el("div", { class: "empty" }, "データなし"));
-    else {
+    if (!rows.length) {
+      // アプリ側の対応が要る軸は「不具合ではない」と分かる文言にする
+      card.append(el("div", { class: "empty" }, b.since
+        ? "アプリのアップデート後に届きます"
+        : "データなし"));
+    } else {
       const max = Math.max(...rows.map(r => r.v));
       const rank = el("div", { class: "rank" });
-      for (const r of rows.slice(0, 6)) {
+      for (const r of rows.slice(0, b.limit ?? 6)) {
         rank.append(el("div", { class: "rank-row", style: "grid-template-columns:minmax(88px,120px) 1fr auto" },
           el("div", { class: "name" }, el("span", { class: "txt" }, b.format(r.k))),
           el("div", { class: "track" },
@@ -446,9 +452,49 @@ function renderBreakdowns() {
           el("div", { class: "val num" }, fmt(r.v), el("span", { class: "share" }, pct(r.v, total)))));
       }
       card.append(rank);
+      const hidden = rows.length - (b.limit ?? 6);
+      if (hidden > 0) {
+        card.append(el("div", { style: "font-size:12px;color:var(--ink-muted);margin-top:8px" },
+          `ほか ${hidden} 種類`));
+      }
     }
     host.append(card);
   }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 曜日別（授業のある平日と休日で使われ方が変わるので独立させる）
+// ─────────────────────────────────────────────────────────────
+function renderWeekdays() {
+  const host = $("#weekdays"); host.innerHTML = "";
+  const counts = sumGroup(rangeDaysList(), "dow");
+  const vals = DOW_LABELS.map((_, i) => Number(counts[String(i)]) || 0);
+  const total = vals.reduce((a, b) => a + b, 0);
+  if (!total) {
+    host.append(el("div", { class: "empty" }, "アプリのアップデート後に届きます"));
+    return;
+  }
+  const max = Math.max(...vals);
+  const rank = el("div", { class: "rank" });
+  vals.forEach((v, i) => {
+    const weekend = i === 0 || i === 6;
+    const color = weekend ? cssVar("--ink-muted") : tabColor("schedule");
+    const row = el("div", { class: "rank-row", style: "grid-template-columns:44px 1fr auto" },
+      el("div", { class: "name" }, el("span", { class: "txt" }, `${DOW_LABELS[i]}曜`)),
+      el("div", { class: "track" },
+        el("div", { class: "fill", style: `width:${(v / max) * 100}%;background:${color}` })),
+      el("div", { class: "val num" }, fmt(v), el("span", { class: "share" }, pct(v, total))));
+    row.addEventListener("pointerenter", ev => showTip(ev, `${DOW_LABELS[i]}曜日`,
+      [["アクティブ端末", fmt(v)], ["全体比", pct(v, total)]]));
+    row.addEventListener("pointermove", moveTip);
+    row.addEventListener("pointerleave", hideTip);
+    rank.append(row);
+  });
+  host.append(rank);
+
+  const wk = vals[0] + vals[6], wd = total - wk;
+  host.append(el("div", { style: "font-size:12px;color:var(--ink-muted);margin-top:10px" },
+    `平日 ${fmt(wd)}（${pct(wd, total)}）／土日 ${fmt(wk)}（${pct(wk, total)}）`));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -490,6 +536,15 @@ function exportCSV() {
     const s = state.daily[d]?.summary || {};
     lines.push([d, s.activeUsers || 0, s.sessions || 0, s.newUsers || 0, s.events || 0]);
   }
+  for (const b of BREAKDOWNS) {
+    const counts = sumGroup(days, b.key);
+    const rows = Object.entries(counts).map(([k, v]) => [k, Number(v) || 0]).filter(r => r[1] > 0);
+    if (!rows.length) continue;
+    rows.sort((a, x) => x[1] - a[1]);
+    lines.push([]);
+    lines.push([b.label, "キー", `期間内(${state.rangeDays}日)`]);
+    for (const [k, v] of rows) lines.push([b.format(k), k, v]);
+  }
   const csv = "﻿" + lines.map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const a = el("a", { href: url, download: `zonavi-analytics_${dayKey(new Date())}.csv` });
@@ -497,11 +552,391 @@ function exportCSV() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// 自動分析レポート
+//
+// 「数字は出ているが、どう読めばいいか分からない」を埋めるためのセクション。
+// 直近の期間と、その前の同じ長さの期間を比べ、動いた指標・機能と、
+// そこから言えること／次の一手を日本語の文章に組み立てる。
+//
+// LLM は使わず、しきい値と条件分岐だけで書いている。理由は 3 つ:
+//  - 同じデータなら必ず同じ文章になる（卒制の考察に引用しても再現できる）
+//  - API キーが要らないので、公開リポジトリのまま動く
+//  - ?demo=1 のサンプルデータでもそのまま成立する
+//
+// 比較する期間を「今週（暦週）」ではなく「直近7日」にしているのは、
+// 途中までの週を丸ごとの週と比べると、必ず減ったように見えてしまうため。
+// ─────────────────────────────────────────────────────────────
+
+const REPORT_WINDOWS = [
+  { key: "week",  days: 7,  label: "週次", now: "直近7日",  before: "その前の7日" },
+  { key: "month", days: 28, label: "月次", now: "直近28日", before: "その前の28日" },
+];
+
+const sumOf   = obj => Object.values(obj || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+const shareOf = (obj, key) => { const t = sumOf(obj); return t > 0 ? (Number(obj?.[key]) || 0) / t : 0; };
+/** 変化率(%)。前期間が 0 のときは比較不能として null を返す */
+const rate   = (now, before) => (before > 0 ? ((now - before) / before) * 100 : null);
+const signed = r => `${r > 0 ? "+" : ""}${r.toFixed(1)}%`;
+const pctText = x => `${(x * 100).toFixed(0)}%`;
+
+/** offset=0 で直近 n 日、1 でその前の n 日（JST 基準） */
+function windowDays(n, offset = 0) {
+  const today = dayKey(new Date());
+  const end = shiftDays(today, -offset * n);
+  return listDays(shiftDays(end, -(n - 1)), end);
+}
+
+function collectWindow(days) {
+  const g = k => sumGroup(days, k);
+  return {
+    days, from: days[0], to: days.at(-1),
+    activeUsers: sumSummary(days, "activeUsers"),
+    sessions:    sumSummary(days, "sessions"),
+    newUsers:    sumSummary(days, "newUsers"),
+    events:      sumSummary(days, "events"),
+    tabs: g("tabs"), feats: g("events"), hours: g("hours"),
+    tenure: g("tenure"), notif: g("notif"), dow: g("dow"), versions: g("versions"),
+  };
+}
+
+/** バージョンキー "1_4_0" を比較できる数値にする */
+const verNum = k => String(k).split("_").reduce((a, n) => a * 1000 + (Number(n) || 0), 0);
+
+function buildReport(win) {
+  const cur = collectWindow(windowDays(win.days, 0));
+  const prv = collectWindow(windowDays(win.days, 1));
+
+  // ── 主要指標の期間比較 ──
+  const metrics = [
+    { key: "activeUsers", label: "アクティブ端末",     note: "1端末1日1カウントの延べ数" },
+    { key: "sessions",    label: "セッション",         note: "30分以上あけて開いた回数" },
+    { key: "newUsers",    label: "新規インストール",   note: "初回起動した端末数" },
+    { key: "events",      label: "総操作回数",         note: "計測対象の操作の合計" },
+  ].map(m => ({ ...m, now: cur[m.key], before: prv[m.key], rate: rate(cur[m.key], prv[m.key]) }));
+
+  const depthNow = cur.activeUsers > 0 ? cur.events / cur.activeUsers : 0;
+  const depthPrv = prv.activeUsers > 0 ? prv.events / prv.activeUsers : 0;
+  metrics.push({ key: "depth", label: "1端末あたりの操作", note: "総操作回数 ÷ アクティブ端末",
+                 now: depthNow, before: depthPrv, rate: rate(depthNow, depthPrv), decimals: 1 });
+
+  // ── 機能ごとの増減 ──
+  const featKeys = [...new Set([...Object.keys(cur.feats), ...Object.keys(prv.feats)])];
+  const moves = featKeys.map(k => {
+    const a = Number(cur.feats[k]) || 0, b = Number(prv.feats[k]) || 0;
+    return { ...lookupEvent(k), now: a, before: b, diff: a - b, rate: rate(a, b) };
+  });
+  // ノイズを避けるため、片側が 5 回未満の小さな動きは拾わない
+  const risers  = moves.filter(m => m.diff > 0 && m.now    >= 5).sort((a, b) => b.diff - a.diff).slice(0, 5);
+  const fallers = moves.filter(m => m.diff < 0 && m.before >= 5).sort((a, b) => a.diff - b.diff).slice(0, 5);
+
+  // ── 気づき ──
+  const insights = [];
+  const add = (level, title, body, action = null) => insights.push({ level, title, body, action });
+  const au = metrics[0], nu = metrics[2];
+
+  if (cur.activeUsers === 0) {
+    add("info", "この期間のデータがまだ届いていません",
+        "アプリが計測を送るのは、端末で ZONAVI が開かれたときです。公開直後や開発中は空になります。",
+        "画面右上で「開発」データソースに切り替えると、Xcode 実行中の操作を確認できます");
+  }
+
+  if (au.rate !== null) {
+    if (au.rate >= 10) {
+      add("good", `アクティブ端末が ${signed(au.rate)} 伸びました`,
+          `${win.before}の ${fmt(au.before)} から ${win.now}は ${fmt(au.now)} に増えています。`,
+          "伸びた要因を特定できるよう、この期間に何を告知したか（授業・SNS・口コミ）を記録に残す");
+    } else if (au.rate <= -10) {
+      add("warn", `アクティブ端末が ${signed(au.rate)} 落ちています`,
+          `${win.before}の ${fmt(au.before)} から ${win.now}は ${fmt(au.now)} に減っています。長期休暇や試験期間など、大学の予定と重なっていないか確認してください。`,
+          "学事日程と重ねて見て、季節要因か、機能side の問題かを切り分ける");
+    }
+  }
+
+  if (nu.rate !== null && au.rate !== null && nu.rate > 10 && au.rate < 0) {
+    add("warn", "新規インストールは増えたのに、使われる量は減っています",
+        `新規は ${signed(nu.rate)}、アクティブ端末は ${signed(au.rate)}。入れてはもらえるが、使い続けてもらえていない状態です。`,
+        "インストール直後 1〜3 日で戻ってくる理由をつくる（翌朝のバス通知をオンボーディング中に設定させる等）");
+  }
+
+  const depth = metrics[4];
+  if (depth.rate !== null && depth.before > 0) {
+    if (depth.rate >= 15) {
+      add("good", `1端末あたりの操作が ${signed(depth.rate)} 増えました`,
+          `${depth.before.toFixed(1)} 回 → ${depth.now.toFixed(1)} 回。同じ人がより深く使うようになっています。`);
+    } else if (depth.rate <= -15) {
+      add("warn", `1端末あたりの操作が ${signed(depth.rate)} 減りました`,
+          `${depth.before.toFixed(1)} 回 → ${depth.now.toFixed(1)} 回。開いてはいるが、以前ほど触られていません。`,
+          "起動直後に見えるホームの情報だけで用事が済んでいないか確認する（それ自体は悪いことではない）");
+    }
+  }
+
+  // 定着
+  if (sumOf(cur.tenure) > 0) {
+    const long = shareOf(cur.tenure, "d30plus");
+    const fresh = shareOf(cur.tenure, "d0") + shareOf(cur.tenure, "d1_6");
+    if (long >= 0.5) {
+      add("good", `30日以上使い続けている端末が ${pctText(long)} を占めています`,
+          "生活の中に定着している状態です。卒制の成果としてはここが一番強い数字になります。");
+    } else if (long < 0.25 && fresh > 0.5) {
+      add("warn", `利用の ${pctText(fresh)} がインストール1週間以内の端末です`,
+          `30日以上の継続は ${pctText(long)} にとどまっています。新規で数字が持っている状態で、定着は弱めです。`,
+          "1週間後に価値が出る機能（時間割・年間予定）へ、初週のうちに触れてもらう導線をつくる");
+    }
+  }
+
+  // 通知許可
+  if (sumOf(cur.notif) > 0) {
+    const granted = shareOf(cur.notif, "granted");
+    const undecided = shareOf(cur.notif, "notDetermined");
+    if (granted < 0.5) {
+      add("warn", `通知を許可している端末は ${pctText(granted)} です`,
+          `バス通知は ZONAVI の中心機能なので、許可率がそのまま届く価値の上限になります。未選択が ${pctText(undecided)} 残っています。`,
+          "許可ダイアログを出す前に「何時のバスに間に合うか前もって知らせます」と用途を先に見せる");
+    } else {
+      add("good", `通知の許可率は ${pctText(granted)} です`,
+          "バス通知やお知らせが届く土台はできています。");
+    }
+  }
+
+  // タブの偏り
+  if (sumOf(cur.tabs) > 0) {
+    const total = sumOf(cur.tabs);
+    const ranked = TABS.map(t => ({ t, n: Number(cur.tabs[t.id]) || 0 })).sort((a, b) => a.n - b.n);
+    const weakest = ranked[0], strongest = ranked.at(-1);
+    if (weakest.n / total < 0.08) {
+      add("info", `${weakest.t.label}タブはほとんど開かれていません（${pct(weakest.n, total)}）`,
+          `一番見られているのは${strongest.t.label}タブ（${pct(strongest.n, total)}）です。`,
+          `${weakest.t.label}の中身をホームに出すか、タブ自体を畳んで4本を3本にする判断材料にする`);
+    }
+  }
+
+  // 時間帯
+  if (sumOf(cur.hours) > 0) {
+    const total = sumOf(cur.hours);
+    const band = (a, b) => { let n = 0; for (let h = a; h <= b; h++) n += Number(cur.hours[String(h).padStart(2, "0")]) || 0; return n; };
+    const morning = band(7, 9), noon = band(11, 13), night = band(21, 23);
+    const peakHour = Array.from({ length: 24 }, (_, h) => [h, Number(cur.hours[String(h).padStart(2, "0")]) || 0])
+      .sort((a, b) => b[1] - a[1])[0][0];
+    if (morning / total >= 0.22) {
+      add("info", `朝の通学時間（7〜9時）に利用の ${pct(morning, total)} が集中しています`,
+          `ピークは ${peakHour}時台。昼（11〜13時）は ${pct(noon, total)}、夜（21〜23時）は ${pct(night, total)} です。`,
+          "朝に見る情報（バス・1限の教室）をウィジェットとロック画面に寄せて、アプリを開かなくても済むようにする");
+    } else {
+      add("info", `利用のピークは ${peakHour}時台です`,
+          `朝（7〜9時）${pct(morning, total)}／昼（11〜13時）${pct(noon, total)}／夜（21〜23時）${pct(night, total)}。`);
+    }
+  }
+
+  // 曜日
+  if (sumOf(cur.dow) > 0) {
+    const total = sumOf(cur.dow);
+    const weekend = (Number(cur.dow["0"]) || 0) + (Number(cur.dow["6"]) || 0);
+    if (weekend / total < 0.12) {
+      add("info", `土日の利用は全体の ${pct(weekend, total)} だけです`,
+          "完全に平日・通学中心のアプリとして使われています。休日に開く理由は今のところありません。",
+          "休日に使わせようとするより、平日の朝に強くする方が費用対効果が高い");
+    }
+  }
+
+  // ログイン失敗
+  const ok = Number(cur.feats["login_success"]) || 0, ng = Number(cur.feats["login_failed"]) || 0;
+  if (ok + ng >= 10 && ng / (ok + ng) > 0.15) {
+    add("warn", `ログインの ${pct(ng, ok + ng)} が失敗しています`,
+        `成功 ${fmt(ok)} 回に対して失敗 ${fmt(ng)} 回。認証で人が詰まっています。`,
+        "失敗理由ごとにメッセージを出し分け、その場で再試行できる導線を置く");
+  }
+
+  // オンボーディング完了率
+  const obStart = Number(cur.feats["onboarding_start"]) || 0;
+  const obDone  = Number(cur.feats["onboarding_complete"]) || 0;
+  if (obStart >= 5) {
+    const r = obDone / obStart;
+    if (r < 0.7) {
+      add("warn", `オンボーディングの完了率は ${pctText(r)} です`,
+          `${fmt(obStart)} 件始まって、完了したのは ${fmt(obDone)} 件。最初の説明で離脱しています。`,
+          "手順を減らし、あとから設定できるものはスキップ可能にする");
+    } else {
+      add("good", `オンボーディングの完了率は ${pctText(r)} です`,
+          "最初の説明はきちんと通過できています。");
+    }
+  }
+
+  // AIチャットの送信転換
+  const aiOpen = Number(cur.feats["home_hanako_open"]) || 0;
+  const aiSend = Number(cur.feats["home_hanako_message_sent"]) || 0;
+  if (aiOpen >= 5 && aiSend / aiOpen < 0.5) {
+    add("info", `AIチャットは開かれても ${pct(aiSend, aiOpen)} しか送信に至っていません`,
+        `${fmt(aiOpen)} 回開かれて、送信は ${fmt(aiSend)} 回。開いたが何を聞けばいいか分からず閉じている可能性があります。`,
+        "「何を聞けるか」の例文を最初から並べて、タップだけで送れるようにする");
+  }
+
+  // 使われていない機能
+  const unused = EVENTS.filter(e => !(Number(cur.feats[e.key]) > 0));
+  if (cur.events > 0 && unused.length) {
+    add("info", `この期間に一度も使われていない機能が ${unused.length} 件あります`,
+        unused.slice(0, 5).map(e => `「${e.label}」`).join("、") + (unused.length > 5 ? " ほか" : ""),
+        "気づかれていないのか、要らないのかを切り分ける。前者なら入口を見直し、後者なら畳んで画面を軽くする");
+  }
+
+  // バージョンの滞留
+  if (sumOf(cur.versions) > 0) {
+    const keys = Object.keys(cur.versions).sort((a, b) => verNum(b) - verNum(a));
+    const latest = keys[0], share = shareOf(cur.versions, latest);
+    if (keys.length > 1 && share < 0.6) {
+      add("info", `最新版 ${latest.replace(/_/g, ".")} は ${pctText(share)} にしか行き渡っていません`,
+          `${keys.length} 種類のバージョンが混在しています。新機能の数字は、この割合で割り引いて読む必要があります。`,
+          "自動アップデートが効くまで待つか、アプリ内で更新を促す");
+    }
+  }
+
+  // 重要な順に並べる：対処が要るもの → 良い兆候 → 参考
+  const order = { warn: 0, good: 1, info: 2 };
+  insights.sort((a, b) => order[a.level] - order[b.level]);
+
+  // ── 総括の一文 ──
+  let headline;
+  if (cur.activeUsers === 0) {
+    headline = `${win.now}（${cur.from} 〜 ${cur.to}）はまだデータが届いていません。`;
+  } else if (au.rate === null) {
+    headline = `${win.now}はアクティブ端末 ${fmt(cur.activeUsers)}、総操作 ${fmt(cur.events)} 回。比較できる前期間のデータがまだないため、増減は次回から出ます。`;
+  } else {
+    const word = au.rate > 3 ? "伸びています" : au.rate < -3 ? "落ちています" : "ほぼ横ばいです";
+    headline = `${win.now}のアクティブ端末は ${fmt(cur.activeUsers)}（${win.before}比 ${signed(au.rate)}）で ${word}。`;
+    if (risers.length) {
+      headline += `伸びの中心は「${risers[0].label}」（${fmt(risers[0].before)} → ${fmt(risers[0].now)} 回）です。`;
+    } else if (fallers.length) {
+      headline += `落ち込みが大きいのは「${fallers[0].label}」（${fmt(fallers[0].before)} → ${fmt(fallers[0].now)} 回）です。`;
+    }
+  }
+
+  const actions = insights.filter(i => i.action).slice(0, 5);
+  return { win, cur, prv, metrics, risers, fallers, insights, actions, headline };
+}
+
+const LEVEL_BADGE = { warn: "要対応", good: "良い兆候", info: "参考" };
+
+function renderReport() {
+  const host = $("#report"); host.innerHTML = "";
+  const win = REPORT_WINDOWS.find(w => w.key === state.reportWindow) ?? REPORT_WINDOWS[0];
+  const rep = buildReport(win);
+  state.report = rep;
+
+  host.append(el("p", { class: "headline" }, rep.headline));
+  host.append(el("div", { class: "hint", style: "margin-bottom:18px" },
+    `${rep.cur.from} 〜 ${rep.cur.to} と、${rep.prv.from} 〜 ${rep.prv.to} の比較（JST）`));
+
+  // 指標の比較表
+  const table = el("table", {},
+    el("thead", {}, el("tr", {},
+      el("th", {}, "指標"),
+      el("th", { class: "n" }, win.now),
+      el("th", { class: "n" }, win.before),
+      el("th", { class: "n" }, "変化"))),
+    el("tbody", {}, rep.metrics.map(m => {
+      const d = m.decimals ?? 0;
+      const dir = m.rate === null ? "flat" : m.rate > 0.5 ? "up" : m.rate < -0.5 ? "down" : "flat";
+      const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "→";
+      return el("tr", {},
+        el("td", { title: m.note }, m.label),
+        el("td", { class: "n" }, d ? m.now.toFixed(d) : fmt(m.now)),
+        el("td", { class: "n" }, d ? m.before.toFixed(d) : fmt(m.before)),
+        el("td", { class: `n delta ${dir}` }, m.rate === null ? "—" : `${arrow} ${signed(m.rate)}`));
+    })));
+  host.append(el("div", { class: "table-wrap", style: "margin-bottom:22px" }, table));
+
+  // 伸びた機能／落ちた機能
+  const movesWrap = el("div", { class: "grid two" });
+  const movesCard = (title, list, tone) => {
+    const card = el("div", { class: "card" }, el("h3", { style: "font-size:13px;margin-bottom:12px" }, title));
+    if (!list.length) card.append(el("div", { class: "empty" }, "目立った動きはありません"));
+    else {
+      const max = Math.max(...list.map(x => Math.abs(x.diff)));
+      const rank = el("div", { class: "rank" });
+      for (const x of list) {
+        rank.append(el("div", { class: "rank-row", style: "grid-template-columns:minmax(96px,1fr) 1fr auto" },
+          el("div", { class: "name" },
+            el("span", { class: "dot", style: `background:${tabColor(x.tab)}` }),
+            el("span", { class: "txt" }, x.label)),
+          el("div", { class: "track" },
+            el("div", { class: "fill", style: `width:${(Math.abs(x.diff) / max) * 100}%;background:${tone}` })),
+          el("div", { class: "val num" }, `${x.diff > 0 ? "+" : ""}${fmt(x.diff)}`,
+            el("span", { class: "share" }, `${fmt(x.before)}→${fmt(x.now)}`))));
+      }
+      card.append(rank);
+    }
+    return card;
+  };
+  movesWrap.append(movesCard("伸びた機能", rep.risers, cssVar("--good")));
+  movesWrap.append(movesCard("落ちた機能", rep.fallers, cssVar("--critical")));
+  host.append(movesWrap);
+
+  // 気づき
+  host.append(el("h3", { class: "report-h" }, "読み取れること"));
+  if (!rep.insights.length) {
+    host.append(el("div", { class: "empty" }, "特筆すべき変化は見つかりませんでした"));
+  } else {
+    for (const i of rep.insights) {
+      host.append(el("div", { class: `insight ${i.level}` },
+        el("div", { class: "ttl" }, el("span", { class: "badge" }, LEVEL_BADGE[i.level]), i.title),
+        el("p", { class: "body" }, i.body),
+        i.action ? el("p", { class: "act" }, el("span", {}, "次の一手"), i.action) : null));
+    }
+  }
+
+  // 次にやるとよいこと
+  if (rep.actions.length) {
+    host.append(el("h3", { class: "report-h" }, "次にやるとよいこと"));
+    host.append(el("ol", { class: "actions" },
+      rep.actions.map(i => el("li", {}, el("strong", {}, i.title), el("span", {}, i.action)))));
+  }
+
+  host.append(el("p", { class: "hint", style: "margin-top:22px" },
+    "この文章は、期間比較の結果を決まった条件で組み立てたものです（生成 AI は使っていません）。同じデータなら毎回同じ文章になります。"));
+}
+
+/** レポートをそのまま資料に貼れるプレーンテキストにする */
+function reportAsText() {
+  const rep = state.report;
+  if (!rep) return "";
+  const L = [];
+  L.push(`ZONAVI 利用状況レポート（${rep.win.label}）`);
+  L.push(`対象: ${rep.cur.from} 〜 ${rep.cur.to}（比較: ${rep.prv.from} 〜 ${rep.prv.to}）`);
+  L.push("");
+  L.push(rep.headline);
+  L.push("");
+  L.push("■ 主要指標");
+  for (const m of rep.metrics) {
+    const d = m.decimals ?? 0;
+    const now = d ? m.now.toFixed(d) : fmt(m.now);
+    const before = d ? m.before.toFixed(d) : fmt(m.before);
+    L.push(`- ${m.label}: ${now}（前期間 ${before}／${m.rate === null ? "比較不能" : signed(m.rate)}）`);
+  }
+  if (rep.risers.length) {
+    L.push("");
+    L.push("■ 伸びた機能");
+    for (const x of rep.risers) L.push(`- ${x.label}: ${fmt(x.before)} → ${fmt(x.now)}（+${fmt(x.diff)}）`);
+  }
+  if (rep.fallers.length) {
+    L.push("");
+    L.push("■ 落ちた機能");
+    for (const x of rep.fallers) L.push(`- ${x.label}: ${fmt(x.before)} → ${fmt(x.now)}（${fmt(x.diff)}）`);
+  }
+  L.push("");
+  L.push("■ 読み取れること");
+  for (const i of rep.insights) {
+    L.push(`- [${LEVEL_BADGE[i.level]}] ${i.title}`);
+    L.push(`  ${i.body}`);
+    if (i.action) L.push(`  → ${i.action}`);
+  }
+  return L.join("\n");
+}
+
+// ─────────────────────────────────────────────────────────────
 // 描画
 // ─────────────────────────────────────────────────────────────
 function render() {
-  renderKPIs(); renderTrend(); renderTabs(); renderFeatures(); renderHours();
-  renderBreakdowns(); renderTable();
+  renderReport(); renderKPIs(); renderTrend(); renderTabs(); renderFeatures();
+  renderHours(); renderWeekdays(); renderBreakdowns(); renderTable();
   const t = state.updatedAt;
   $("#updated").textContent = t
     ? `最終更新 ${t.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`
@@ -565,6 +1000,23 @@ function wireControls() {
     $$("#source-seg button").forEach(x => x.setAttribute("aria-pressed", x === b));
     refresh();
   }));
+  $$("#report-seg button").forEach(b => b.addEventListener("click", () => {
+    state.reportWindow = b.dataset.window;
+    localStorage.setItem("zonavi.dash.reportWindow", state.reportWindow);
+    $$("#report-seg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    renderReport();
+  }));
+  $$("#report-seg button").forEach(x => x.setAttribute("aria-pressed", x.dataset.window === state.reportWindow));
+  $("#report-copy").addEventListener("click", async ev => {
+    const btn = ev.currentTarget;
+    try {
+      await navigator.clipboard.writeText(reportAsText());
+      btn.textContent = "コピーしました";
+    } catch {
+      btn.textContent = "コピーできませんでした";
+    }
+    setTimeout(() => { btn.textContent = "レポートをコピー"; }, 1800);
+  });
   $("#refresh").addEventListener("click", refresh);
   $("#theme-toggle").addEventListener("click", toggleTheme);
   $("#export").addEventListener("click", exportCSV);
@@ -654,6 +1106,22 @@ async function main() {
 // ─────────────────────────────────────────────────────────────
 // デモ用サンプルデータ（?demo=1 のときだけ使う）
 // ─────────────────────────────────────────────────────────────
+/** デモ用の機種分布。学生の手元にありそうな構成を、合計がアクティブ端末数に合うよう配る */
+function demoModels(users) {
+  const mix = [
+    ["iPhone18_3", 0.13], ["iPhone18_1", 0.06], ["iPhone17_3", 0.17], ["iPhone17_1", 0.08],
+    ["iPhone16_1", 0.07], ["iPhone15_4", 0.12], ["iPhone15_2", 0.05], ["iPhone14_5", 0.11],
+    ["iPhone14_6", 0.06], ["iPhone13_2", 0.05], ["iPhone12_1", 0.04], ["iPad13_18", 0.06],
+  ];
+  const out = {};
+  let assigned = 0;
+  mix.forEach(([k, w], i) => {
+    const n = i === mix.length - 1 ? Math.max(0, users - assigned) : Math.round(users * w);
+    if (n > 0) { out[k] = n; assigned += n; }
+  });
+  return out;
+}
+
 function buildDemoData() {
   let seed = 20260905;
   const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
@@ -685,9 +1153,21 @@ function buildDemoData() {
     for (const e of EVENTS) {
       const base = sessions * weightsEvent[e.key] * 0.20;
       const n = Math.max(0, Math.round(base * (0.6 + rnd() * 0.8)));
-      if (!n) continue;
-      events[e.key] = n; evTotal += n;
-      totalEvents[e.key] = (totalEvents[e.key] || 0) + n;
+      if (n) events[e.key] = n;
+    }
+    // 実際のアプリでは必ず成り立つ関係（起動＝セッション、完了≦開始 など）を反映させる。
+    // ここが乱数のままだと、レポートが「ログイン失敗が半分」のような有り得ない指摘を出してしまう。
+    events.app_open                 = sessions;
+    events.onboarding_start         = newUsers;
+    events.consent_agree            = Math.round(newUsers * 0.96);
+    events.onboarding_complete      = Math.round(newUsers * 0.81);
+    events.login_success            = Math.round(users * 0.34);
+    events.login_failed             = Math.max(0, Math.round(events.login_success * 0.06));
+    events.home_hanako_message_sent = Math.round((events.home_hanako_open || 0) * 0.55);
+    for (const [k, n] of Object.entries(events)) {
+      if (!n) { delete events[k]; continue; }
+      evTotal += n;
+      totalEvents[k] = (totalEvents[k] || 0) + n;
     }
     const shapeSum = hourShape.reduce((a, b) => a + b, 0);
     hourShape.forEach((w, h) => {
@@ -703,6 +1183,15 @@ function buildDemoData() {
       versions: { "1_3_0": Math.round(users * 0.72), "1_2_1": Math.round(users * 0.21), "1_1_0": Math.round(users * 0.07) },
       os: { "18": Math.round(users * 0.66), "17": Math.round(users * 0.28), "16": Math.round(users * 0.06) },
       device: { iPhone: Math.round(users * 0.94), iPad: Math.round(users * 0.06) },
+      model: demoModels(users),
+      osFull: { "18_5": Math.round(users * 0.41), "18_4": Math.round(users * 0.19),
+                "18_1": Math.round(users * 0.06), "17_6": Math.round(users * 0.20),
+                "17_4": Math.round(users * 0.08), "16_7": Math.round(users * 0.06) },
+      dow: { [String(dow)]: users },
+      notif: { granted: Math.round(users * 0.61), denied: Math.round(users * 0.22),
+               notDetermined: Math.round(users * 0.17) },
+      display: { standard: Math.round(users * 0.55), large: Math.round(users * 0.24),
+                 small: Math.round(users * 0.15), tablet: Math.round(users * 0.06) },
       lang: { ja: Math.round(users * 0.93), en: Math.round(users * 0.07) },
       theme: { light: Math.round(users * 0.71), dark: Math.round(users * 0.29) },
       tenure: { d0: newUsers, d1_6: Math.round(users * 0.18),
