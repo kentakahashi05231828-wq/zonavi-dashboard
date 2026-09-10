@@ -41,8 +41,6 @@ export const EVENTS = [
   { key: "home_cafeteria_weekly_open",    tab: "home", label: "学食｜週間メニューを開く" },
   { key: "home_notification_list_open",   tab: "home", label: "お知らせ一覧を開く" },
   { key: "home_appbar_settings_open",     tab: "home", label: "アプリバー表示設定を開く" },
-  { key: "home_hanako_open",              tab: "home", label: "AIチャットを開く" },
-  { key: "home_hanako_message_sent",      tab: "home", label: "AIチャットに送信" },
 
   // 予定タブ
   { key: "schedule_tab_timetable",   tab: "schedule", label: "時間割タブを表示" },
@@ -186,7 +184,6 @@ export const FEATURES = [
   { key: "bus_notif",     tab: "home",     label: "バス通知" },
   { key: "cafeteria",     tab: "home",     label: "学食メニュー" },
   { key: "notice",        tab: "home",     label: "お知らせ" },
-  { key: "ai_chat",       tab: "home",     label: "AIチャット" },
   { key: "appbar",        tab: "home",     label: "アプリバー表示設定" },
   { key: "timetable",     tab: "schedule", label: "時間割" },
   { key: "timetable_ocr", tab: "schedule", label: "時間割の画像読み取り" },
@@ -197,8 +194,14 @@ export const FEATURES = [
   { key: "feedback",      tab: "links",    label: "フィードバック" },
   { key: "ext_links",     tab: "links",    label: "外部サイトへのリンク" },
 ];
+/** 廃止した機能。過去データのラベル用 */
+export const RETIRED_FEATURES = [
+  { key: "ai_chat", tab: "home", label: "AIチャット（廃止）", retired: true },
+];
 export const lookupFeature = key =>
-  FEATURES.find(f => f.key === key) ?? { key, tab: "app", label: key };
+  FEATURES.find(f => f.key === key)
+  ?? RETIRED_FEATURES.find(f => f.key === key)
+  ?? { key, tab: "app", label: key };
 
 /**
  * ウィジェットの種類。key は WidgetKit の kind（ZONAVIWidgetBundle と一致）。
@@ -276,8 +279,19 @@ export const BREAKDOWNS = [
   },
 ];
 
+/**
+ * 廃止した計測。アプリからは無くなったが過去データには残りうるので、
+ * ラベルだけ残して「（廃止）」付きで表示できるようにしておく。
+ */
+export const RETIRED_EVENTS = [
+  { key: "home_hanako_open",         tab: "home", label: "AIチャットを開く" },
+  { key: "home_hanako_message_sent", tab: "home", label: "AIチャットに送信" },
+];
+const retiredEventByKey = new Map(
+  RETIRED_EVENTS.map(e => [e.key, { ...e, label: `${e.label}（廃止）`, retired: true }]));
+
 const byKey = new Map(EVENTS.map(e => [e.key, e]));
 /** 未知のキー（アプリ側だけ先に追加された場合）もそのまま表示できるようにする */
 export const lookupEvent = key =>
-  byKey.get(key) ?? { key, tab: "app", label: key, unknown: true };
+  byKey.get(key) ?? retiredEventByKey.get(key) ?? { key, tab: "app", label: key, unknown: true };
 export const tabOf = id => TABS.find(t => t.id === id) ?? APP_GROUP;

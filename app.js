@@ -5,6 +5,7 @@ import {
   APPBAR_MODES, APPBAR_SLOTS, lookupSlot, APPBAR_COUNT_LABELS,
   WIDGET_FAMILY_LABELS, WIDGET_FAMILY_ORDER, WIDGET_COUNT_LABELS,
 } from "./catalog.js";
+import { STUDENT_COUNT, calendarEntries } from "./config.js";
 
 // ─────────────────────────────────────────────────────────────
 // ユーティリティ
@@ -256,6 +257,19 @@ function renderKPIs() {
 // ─────────────────────────────────────────────────────────────
 const WEEKS_SHOWN = 12, MONTHS_SHOWN = 6;
 
+/** 表示に使う学年暦。デモのときは、機能が分かるようサンプルを今日基準で作る */
+function calendarForView() {
+  if (!state.demo) return calendarEntries();
+  const t = dayKey(new Date());
+  const day = (n, label, kind) => ({ from: shiftDays(t, n), to: shiftDays(t, n), label, kind });
+  return [
+    { from: shiftDays(t, -52), to: shiftDays(t, -14), label: "夏季休業", kind: "break" },
+    day(-13, "後期授業開始", "milestone"),
+    { from: shiftDays(t, -13), to: shiftDays(t, -7), label: "履修登録", kind: "break" },
+    day(-3, "ZOKEI展", "event"),
+  ];
+}
+
 /** 期間の棒グラフ。進行中の期間は薄く塗って「まだ増える」ことを示す */
 function renderPeriodBars(host, rows, ariaLabel) {
   const max = Math.max(1, ...rows.map(r => r.value));
@@ -346,6 +360,9 @@ function renderUsers() {
     stickiness = dauSum / 7 / lastWeek.value;
   }
 
+  // 学内専用アプリなので分母が確定している。台数より「学生の何%に届いたか」が本質
+  const share = n => (STUDENT_COUNT > 0 ? `学生の ${((n / STUDENT_COUNT) * 100).toFixed(1)}%` : null);
+
   const tile = (label, value, sub, note) => el("div", { class: "card kpi-tile" },
     el("div", { class: "label", title: note ?? "" }, label),
     el("div", { class: "value num" }, value),
@@ -357,10 +374,14 @@ function renderUsers() {
   };
 
   host.append(el("div", { class: "grid kpi" },
-    tile("累計ダウンロード", fmt(installs), "初回起動した端末の累計",
+    tile("累計ダウンロード", fmt(installs),
+         share(installs) ? `${share(installs)}（初回起動した端末の累計）` : "初回起動した端末の累計",
          "App Store の実ダウンロード数ではなく、アプリを一度でも開いた端末の数です"),
     tile("週間ユーザー（WAU）", lastWeek ? fmt(lastWeek.value) : "—",
-         lastWeek ? `${weekStartDay(lastWeek.key)} の週 ／ ${deltaLine(lastWeek, prevWeek)}` : "データなし",
+         lastWeek
+           ? [share(lastWeek.value), `${weekStartDay(lastWeek.key)} の週`, deltaLine(lastWeek, prevWeek)]
+               .filter(Boolean).join(" ／ ")
+           : "データなし",
          "その週に一度でもアプリを開いた実人数。週に5回開いても1人"),
     tile("月間ユーザー（MAU）", lastMonth ? fmt(lastMonth.value) : "—",
          lastMonth ? `${lastMonth.key} ／ ${deltaLine(lastMonth, prevMonth)}` : "データなし",
@@ -395,6 +416,10 @@ function renderUsers() {
   renderPeriodBars(mo.box, monthRows, "月ごとの実利用者数");
   host.append(el("p", { class: "hint", style: "margin-top:12px" },
     "「サマリー」のアクティブ端末は延べ（1端末1日1カウント）なので、ここの実人数より大きくなります。どちらも正しく、意味が違います。"));
+  if (!(STUDENT_COUNT > 0)) {
+    host.append(el("p", { class: "hint", style: "margin-top:6px" },
+      "config.js に学生数を入れると、台数が「学内の何%に届いたか」に変わります。学内専用アプリは分母が確定しているので、この率が一番強い指標になります。"));
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -444,6 +469,41 @@ function renderTrend() {
     const t = svgEl("text", { class: "axis-label", x: x(i), y: H - 8, "text-anchor": "middle" });
     t.textContent = shortDay(d); svg.append(t);
   });
+  // 学年暦を重ねる。単独の折れ線はただの上下だが、休業・試験と重ねると理由が読める
+  const cal = calendarForView();
+  let stagger = 0;
+  for (const e of cal) {
+    if (e.to < days[0] || e.from > days.at(-1)) continue;
+    const i0 = Math.max(0, days.findIndex(d => d >= e.from));
+    const after = days.findIndex(d => d > e.to);
+    const i1 = (after === -1 ? days.length : after) - 1;
+    if (i1 < i0) continue;
+
+    const isBand = i1 > i0;
+    const ty = pad.t + 11 + (stagger++ % 2) * 13;
+    if (isBand) {
+      const x0 = x(i0), x1 = x(i1);
+      // データ線より前に出ないよう、地の色に薄く沈める（ライト・ダーク共通）
+      svg.append(svgEl("rect", {
+        x: x0, y: pad.t, width: Math.max(2, x1 - x0), height: ih,
+        fill: cssVar("--ink"), opacity: .055,
+      }));
+      if (x1 - x0 > 46) {
+        const t = svgEl("text", { class: "axis-label", x: x0 + 5, y: ty });
+        t.textContent = e.label; svg.append(t);
+      }
+    } else {
+      const xx = x(i0);
+      svg.append(svgEl("line", {
+        x1: xx, x2: xx, y1: pad.t, y2: pad.t + ih,
+        stroke: e.kind === "event" ? cssVar("--tab-links") : cssVar("--axis"),
+        "stroke-width": 1, "stroke-dasharray": "3 3",
+      }));
+      const t = svgEl("text", { class: "axis-label", x: xx + 4, y: ty });
+      t.textContent = e.label; svg.append(t);
+    }
+  }
+
   svg.append(svgEl("line", { class: "baseline", x1: pad.l, x2: W - pad.r, y1: y(0), y2: y(0) }));
 
   for (const s of data) {
@@ -481,6 +541,11 @@ function renderTrend() {
   });
 
   host.append(el("div", { class: "chart" }, svg));
+
+  if (!cal.length) {
+    host.append(el("p", { class: "hint", style: "margin-top:10px" },
+      "config.js の ACADEMIC_CALENDAR に学年暦を入れると、休業・試験・行事をこのグラフに重ねられます。増減の理由は、たいてい学事暦で説明がつきます。"));
+  }
 }
 function niceCeil(v) {
   const p = Math.pow(10, Math.floor(Math.log10(Math.max(v, 1))));
@@ -1256,15 +1321,6 @@ function buildReport(win) {
     }
   }
 
-  // AIチャットの送信転換
-  const aiOpen = Number(cur.feats["home_hanako_open"]) || 0;
-  const aiSend = Number(cur.feats["home_hanako_message_sent"]) || 0;
-  if (aiOpen >= 5 && aiSend / aiOpen < 0.5) {
-    add("info", `AIチャットは開かれても ${pct(aiSend, aiOpen)} しか送信に至っていません`,
-        `${fmt(aiOpen)} 回開かれて、送信は ${fmt(aiSend)} 回。開いたが何を聞けばいいか分からず閉じている可能性があります。`,
-        "「何を聞けるか」の例文を最初から並べて、タップだけで送れるようにする");
-  }
-
   // ウィジェット
   const wIn = Number(cur.widgetUsers.installed) || 0, wNo = Number(cur.widgetUsers.none) || 0;
   if (wIn + wNo > 0) {
@@ -1282,6 +1338,30 @@ function buildReport(win) {
     }
   }
 
+  // 学年暦との重なり。増減はまず学事暦で説明がつかないかを疑う
+  const calNow = calendarForView().filter(e => !(e.to < cur.from || e.from > cur.to));
+  if (calNow.length) {
+    add("info", `この期間は「${calNow.map(e => e.label).join("」「")}」と重なっています`,
+        "増減を読むときは、まず学事暦で説明がつかないかを確かめてください。長期休業や試験期間は利用を大きく動かします。");
+  } else if (!calendarForView().length) {
+    add("info", "学年暦がまだ登録されていません",
+        "増減の理由の多くは学事暦で説明がつきますが、いまは重ねて確認できません。",
+        "config.js に休業期間・履修登録・定期試験・行事の4種類だけでも入れる");
+  }
+
+  // ウィジェットが増えているのにセッションが減るのは、失敗ではなく狙いどおりかもしれない
+  const wPrevIn = Number(prv.widgetUsers.installed) || 0;
+  const sessM = metrics[1];
+  if (wIn > 0 && wPrevIn > 0 && sessM.rate !== null && sessM.rate < -5) {
+    const wRate = rate(wIn, wPrevIn);
+    if (wRate !== null && wRate > 5) {
+      add("info", "セッションは減りましたが、ウィジェットの利用は増えています",
+          `セッション ${signed(sessM.rate)} に対して、ウィジェットを置いている端末は ${signed(wRate)}。`
+          + "ウィジェットは「アプリを開かずに済ませる」ための機能なので、これは失敗ではなく狙いどおりの形かもしれません。",
+          "セッション数だけで判断せず、ウィジェットと通知の到達を合わせて見る");
+    }
+  }
+
   // 実人数（週次）と、ダウンロードに対する生存率
   const installsTotal = Number(state.totals?.summary?.installs) || 0;
   const doneWeekKeys = lastWeekKeys(WEEKS_SHOWN).filter(k => k !== isoWeekKey(dayKey(new Date())));
@@ -1292,6 +1372,13 @@ function buildReport(win) {
     if (r !== null && Math.abs(r) >= 8) {
       add(r > 0 ? "good" : "warn", `週間ユーザー（実人数）が ${signed(r)}`,
           `${fmt(wPrev)} 人 → ${fmt(wNow)} 人。延べではなく、実際に何人が使ったかの変化です。`);
+    }
+    if (STUDENT_COUNT > 0) {
+      const reach = wNow / STUDENT_COUNT;
+      add(reach >= 0.2 ? "good" : "info",
+          `先週アプリを使ったのは、学生 ${fmt(STUDENT_COUNT)} 人の ${pctText(reach)} です`,
+          `学内専用アプリなので分母が確定しています。台数ではなくこの率が、届いた範囲を表す一番強い数字です。`,
+          reach < 0.1 ? "まだ知られていない段階。認知を広げる打ち手が、機能追加より効きます" : null);
     }
     if (installsTotal > 0) {
       const alive = wNow / installsTotal;
