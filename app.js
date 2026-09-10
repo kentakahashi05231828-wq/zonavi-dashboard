@@ -48,6 +48,44 @@ const listDays = (from, to) => {
 };
 const shortDay = key => `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`;
 
+/**
+ * ISO 8601 の週キー（月曜はじまり）。例: "2026-09-10" → "2026-W37"
+ * アプリ側 AnalyticsService.weekKey と同じ規則。ここがずれると実人数が合わなくなる。
+ */
+function isoWeekKey(dayStr) {
+  const [y, m, d] = dayStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = (dt.getUTCDay() + 6) % 7;          // 月=0 … 日=6
+  dt.setUTCDate(dt.getUTCDate() - dow + 3);      // その週の木曜に寄せる
+  const isoYear = dt.getUTCFullYear();
+  const jan4 = new Date(Date.UTC(isoYear, 0, 4));
+  const jan4dow = (jan4.getUTCDay() + 6) % 7;
+  const week = 1 + Math.round((dt - jan4) / 86400000 / 7 + (jan4dow - 3) / 7);
+  return `${isoYear}-W${String(week).padStart(2, "0")}`;
+}
+const monthKeyOf = dayStr => dayStr.slice(0, 7);
+
+/** 週キーの月曜日（ラベル用） */
+function weekStartDay(weekKey) {
+  const [y, w] = weekKey.split("-W").map(Number);
+  const jan4 = new Date(Date.UTC(y, 0, 4));
+  const jan4dow = (jan4.getUTCDay() + 6) % 7;
+  const monday = new Date(jan4.getTime() + ((w - 1) * 7 - jan4dow) * 86400000);
+  return monday.toISOString().slice(0, 10);
+}
+/** 直近 n 週・n ヶ月のキー（古い順） */
+function lastWeekKeys(n) {
+  const out = []; let d = dayKey(new Date());
+  for (let i = 0; i < n; i++) { out.unshift(isoWeekKey(d)); d = shiftDays(d, -7); }
+  return out;
+}
+function lastMonthKeys(n) {
+  const [y, m] = dayKey(new Date()).split("-").map(Number);
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) out.push(new Date(Date.UTC(y, m - 1 - i, 1)).toISOString().slice(0, 7));
+  return out;
+}
+
 // ─────────────────────────────────────────────────────────────
 // 状態
 // ─────────────────────────────────────────────────────────────
@@ -59,6 +97,8 @@ const state = {
   report: null,
   showAllEvents: false,
   daily: {},                // { "2026-09-05": {...} }
+  weekly: {},               // { "2026-W37": { activeUsers, newUsers } } 実人数
+  monthly: {},              // { "2026-09":   { activeUsers, newUsers } } 実人数
   totals: {},
   db: null,
 };
@@ -124,10 +164,17 @@ async function loadData() {
   const today = dayKey(new Date());
   // 前期間との比較（表示範囲の 2 倍）と、レポートの月次比較（28日×2）の両方に足りる分をとる
   const from = shiftDays(today, -(Math.max(state.rangeDays * 2, 56) - 1));
-  const dailySnap = await get(query(ref(state.db, `${state.source}/daily`), orderByKey(), startAt(from)));
-  const totalSnap = await get(ref(state.db, `${state.source}/totals`));
-  state.daily  = dailySnap.val() || {};
-  state.totals = totalSnap.val() || {};
+  // 週次・月次は 1 期間 1 レコードなので、まるごと読んでも軽い
+  const [dailySnap, totalSnap, weekSnap, monthSnap] = await Promise.all([
+    get(query(ref(state.db, `${state.source}/daily`), orderByKey(), startAt(from))),
+    get(ref(state.db, `${state.source}/totals`)),
+    get(ref(state.db, `${state.source}/weekly`)),
+    get(ref(state.db, `${state.source}/monthly`)),
+  ]);
+  state.daily   = dailySnap.val() || {};
+  state.totals  = totalSnap.val() || {};
+  state.weekly  = weekSnap.val() || {};
+  state.monthly = monthSnap.val() || {};
   state.updatedAt = new Date();
 }
 
@@ -189,6 +236,154 @@ function renderKPIs() {
       el("small", {}, "回/日")),
     el("div", { class: "delta flat" }, el("span", { class: "jp" }, "使い込み度の目安")),
   ));
+}
+
+// ─────────────────────────────────────────────────────────────
+// ユーザー数（実人数）
+//
+// 日別の activeUsers は「延べ」で、同じ端末が週に5日開けば 5 になる。
+// 実人数を出すにはアプリ側で「その週・その月で最初に開いたときだけ 1」を
+// 数える必要があり、その結果が weekly / monthly ノードに入っている。
+// ─────────────────────────────────────────────────────────────
+const WEEKS_SHOWN = 12, MONTHS_SHOWN = 6;
+
+/** 期間の棒グラフ。進行中の期間は薄く塗って「まだ増える」ことを示す */
+function renderPeriodBars(host, rows, ariaLabel) {
+  const max = Math.max(1, ...rows.map(r => r.value));
+  const avail = Math.max(520, host.clientWidth || 760);
+  const W = Math.max(avail, rows.length * 54), H = 200;
+  const pad = { t: 14, r: 10, b: 40, l: 46 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const bw = iw / rows.length;
+  const niceMax = niceCeil(max);
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img",
+                             style: `max-width:100%;${W > avail ? "" : "width:100%;"}`,
+                             "aria-label": ariaLabel });
+  for (let i = 0; i <= 2; i++) {
+    const v = (niceMax / 2) * i, yy = pad.t + ih - (v / niceMax) * ih;
+    svg.append(svgEl("line", { class: "tick-line", x1: pad.l, x2: W - pad.r, y1: yy, y2: yy }));
+    const t = svgEl("text", { class: "axis-label", x: pad.l - 8, y: yy + 4, "text-anchor": "end" });
+    t.textContent = fmt(v); svg.append(t);
+  }
+  rows.forEach((r, i) => {
+    const h = (r.value / niceMax) * ih;
+    const x = pad.l + bw * i + bw * 0.16;
+    const rect = svgEl("rect", {
+      x, y: pad.t + ih - h, width: bw * 0.68, height: Math.max(r.value > 0 ? 2 : 0, h), rx: 4,
+      fill: tabColor("home"), opacity: r.inProgress ? 0.42 : 1,
+    });
+    rect.addEventListener("pointerenter", ev => showTip(ev, r.tipTitle ?? r.label, [
+      ["実人数", fmt(r.value)],
+      ["うち新規", fmt(r.newUsers)],
+      ...(r.inProgress ? [["状態", "集計中（まだ増えます）"]] : []),
+    ]));
+    rect.addEventListener("pointermove", moveTip);
+    rect.addEventListener("pointerleave", hideTip);
+    svg.append(rect);
+
+    const lbl = svgEl("text", { class: "axis-label", x: pad.l + bw * i + bw / 2, y: H - 22, "text-anchor": "middle" });
+    lbl.textContent = r.label; svg.append(lbl);
+    if (r.value > 0) {
+      const v = svgEl("text", { class: "axis-label", x: pad.l + bw * i + bw / 2,
+                                y: pad.t + ih - h - 6, "text-anchor": "middle", fill: cssVar("--ink-2") });
+      v.textContent = fmt(r.value); svg.append(v);
+    }
+    if (r.inProgress) {
+      const t = svgEl("text", { class: "axis-label", x: pad.l + bw * i + bw / 2, y: H - 8, "text-anchor": "middle" });
+      t.textContent = "集計中"; svg.append(t);
+    }
+  });
+  svg.append(svgEl("line", { class: "baseline", x1: pad.l, x2: W - pad.r, y1: pad.t + ih, y2: pad.t + ih }));
+  host.append(el("div", { class: "chart" }, svg));
+}
+
+function renderUsers() {
+  const host = $("#users"); host.innerHTML = "";
+  const today = dayKey(new Date());
+  const curWeek = isoWeekKey(today), curMonth = monthKeyOf(today);
+  const installs = Number(state.totals?.summary?.installs) || 0;
+
+  const weekRows = lastWeekKeys(WEEKS_SHOWN).map(k => {
+    const start = weekStartDay(k);
+    return {
+      key: k, label: `${Number(start.slice(5, 7))}/${Number(start.slice(8, 10))}`,
+      tipTitle: `${k}（${start} の週）`,
+      value: Number(state.weekly[k]?.activeUsers) || 0,
+      newUsers: Number(state.weekly[k]?.newUsers) || 0,
+      inProgress: k === curWeek,
+    };
+  });
+  const monthRows = lastMonthKeys(MONTHS_SHOWN).map(k => ({
+    key: k, label: `${Number(k.slice(5, 7))}月`, tipTitle: k,
+    value: Number(state.monthly[k]?.activeUsers) || 0,
+    newUsers: Number(state.monthly[k]?.newUsers) || 0,
+    inProgress: k === curMonth,
+  }));
+
+  // 完了した期間だけを比較に使う（進行中の週・月と比べると必ず減って見える）
+  const doneWeeks  = weekRows.filter(r => !r.inProgress);
+  const doneMonths = monthRows.filter(r => !r.inProgress);
+  const lastWeek = doneWeeks.at(-1), prevWeek = doneWeeks.at(-2);
+  const lastMonth = doneMonths.at(-1), prevMonth = doneMonths.at(-2);
+
+  // 粘着度：完了した直近の週の「1日あたり平均利用者 ÷ その週の実人数」
+  let stickiness = null;
+  if (lastWeek && lastWeek.value > 0) {
+    const start = weekStartDay(lastWeek.key);
+    const days = listDays(start, shiftDays(start, 6));
+    const dauSum = days.reduce((a, d) => a + (Number(state.daily[d]?.summary?.activeUsers) || 0), 0);
+    stickiness = dauSum / 7 / lastWeek.value;
+  }
+
+  const tile = (label, value, sub, note) => el("div", { class: "card kpi-tile" },
+    el("div", { class: "label", title: note ?? "" }, label),
+    el("div", { class: "value num" }, value),
+    el("div", { class: "delta flat" }, el("span", { class: "jp" }, sub)));
+  const deltaLine = (now, before) => {
+    if (!before || !before.value) return "前の期間と比較できません";
+    const r = ((now.value - before.value) / before.value) * 100;
+    return `前の期間比 ${r > 0 ? "+" : ""}${r.toFixed(1)}%`;
+  };
+
+  host.append(el("div", { class: "grid kpi" },
+    tile("累計ダウンロード", fmt(installs), "初回起動した端末の累計",
+         "App Store の実ダウンロード数ではなく、アプリを一度でも開いた端末の数です"),
+    tile("週間ユーザー（WAU）", lastWeek ? fmt(lastWeek.value) : "—",
+         lastWeek ? `${weekStartDay(lastWeek.key)} の週 ／ ${deltaLine(lastWeek, prevWeek)}` : "データなし",
+         "その週に一度でもアプリを開いた実人数。週に5回開いても1人"),
+    tile("月間ユーザー（MAU）", lastMonth ? fmt(lastMonth.value) : "—",
+         lastMonth ? `${lastMonth.key} ／ ${deltaLine(lastMonth, prevMonth)}` : "データなし",
+         "その月に一度でもアプリを開いた実人数"),
+    tile("粘着度（DAU/WAU）", stickiness === null ? "—" : `${(stickiness * 100).toFixed(0)}%`,
+         stickiness === null ? "データなし" : `週 ${(stickiness * 7).toFixed(1)} 日ペースで使われている`,
+         "1日あたりの平均利用者 ÷ その週の実人数。高いほど毎日使われている"),
+  ));
+
+  if (!weekRows.some(r => r.value > 0) && !monthRows.some(r => r.value > 0)) {
+    host.append(el("div", { class: "card", style: "margin-top:14px" },
+      el("div", { class: "empty" }, "実人数はアプリのアップデート後に届きます")));
+    host.append(el("p", { class: "hint", style: "margin-top:10px" },
+      "累計ダウンロードは既存のデータから出しています。WAU / MAU は「その週・その月で最初に開いたときだけ数える」処理がアプリ側に要るため、次回リリース以降に貯まり始めます。"));
+    return;
+  }
+
+  const card = (title, hint, rows, aria) => {
+    const c = el("div", { class: "card" },
+      el("h3", { style: "font-size:13px;margin-bottom:4px" }, title),
+      el("p", { class: "hint", style: "margin:0 0 12px" }, hint));
+    const box = el("div", {});
+    c.append(box);
+    renderPeriodBars(box, rows, aria);
+    return c;
+  };
+  host.append(el("div", { class: "grid", style: "margin-top:14px;gap:14px" },
+    card(`週間ユーザー数（直近${WEEKS_SHOWN}週）`,
+         "同じ人がその週に何回開いても1人。横軸はその週の月曜日。", weekRows, "週ごとの実利用者数"),
+    card(`月間ユーザー数（直近${MONTHS_SHOWN}ヶ月）`,
+         "同じ人がその月に何回開いても1人。", monthRows, "月ごとの実利用者数"),
+  ));
+  host.append(el("p", { class: "hint", style: "margin-top:12px" },
+    "「サマリー」のアクティブ端末は延べ（1端末1日1カウント）なので、ここの実人数より大きくなります。どちらも正しく、意味が違います。"));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -669,6 +864,24 @@ function exportCSV() {
     const s = state.daily[d]?.summary || {};
     lines.push([d, s.activeUsers || 0, s.sessions || 0, s.newUsers || 0, s.events || 0]);
   }
+  const wk2 = lastWeekKeys(WEEKS_SHOWN);
+  if (wk2.some(k => state.weekly[k])) {
+    lines.push([]);
+    lines.push(["週", "開始日(月)", "実人数", "うち新規"]);
+    for (const k of wk2) {
+      const v = state.weekly[k]; if (!v) continue;
+      lines.push([k, weekStartDay(k), v.activeUsers ?? 0, v.newUsers ?? 0]);
+    }
+  }
+  const mo2 = lastMonthKeys(MONTHS_SHOWN);
+  if (mo2.some(k => state.monthly[k])) {
+    lines.push([]);
+    lines.push(["月", "実人数", "うち新規"]);
+    for (const k of mo2) {
+      const v = state.monthly[k]; if (!v) continue;
+      lines.push([k, v.activeUsers ?? 0, v.newUsers ?? 0]);
+    }
+  }
   const fu = sumGroup(days, "featureUsers");
   if (Object.keys(fu).length) {
     const active = sumSummary(days, "activeUsers");
@@ -941,6 +1154,27 @@ function buildReport(win) {
     }
   }
 
+  // 実人数（週次）と、ダウンロードに対する生存率
+  const installsTotal = Number(state.totals?.summary?.installs) || 0;
+  const doneWeekKeys = lastWeekKeys(WEEKS_SHOWN).filter(k => k !== isoWeekKey(dayKey(new Date())));
+  const wNow  = Number(state.weekly[doneWeekKeys.at(-1)]?.activeUsers) || 0;
+  const wPrev = Number(state.weekly[doneWeekKeys.at(-2)]?.activeUsers) || 0;
+  if (wNow > 0) {
+    const r = rate(wNow, wPrev);
+    if (r !== null && Math.abs(r) >= 8) {
+      add(r > 0 ? "good" : "warn", `週間ユーザー（実人数）が ${signed(r)}`,
+          `${fmt(wPrev)} 人 → ${fmt(wNow)} 人。延べではなく、実際に何人が使ったかの変化です。`);
+    }
+    if (installsTotal > 0) {
+      const alive = wNow / installsTotal;
+      add(alive >= 0.25 ? "good" : "info",
+          `ダウンロードした端末のうち、先週使ったのは ${pctText(alive)} です`,
+          `累計 ${fmt(installsTotal)} 台に対して、先週の実利用は ${fmt(wNow)} 人。`
+          + (alive < 0.15 ? "入れたまま使われていない端末が多い状態です。" : ""),
+          alive < 0.15 ? "「インストールからの経過」と合わせて、離脱が起きる時期を特定する" : null);
+    }
+  }
+
   // 機能の利用率（人数ベース）
   if (sumOf(cur.featureUsers) > 0 && cur.activeUsers > 0) {
     const rows = FEATURES.map(f => ({ ...f, n: Number(cur.featureUsers[f.key]) || 0 }));
@@ -1128,7 +1362,7 @@ function reportAsText() {
 // 描画
 // ─────────────────────────────────────────────────────────────
 function render() {
-  renderKPIs(); renderTrend(); renderTabs(); renderFeatures(); renderFeatureUsers();
+  renderKPIs(); renderUsers(); renderTrend(); renderTabs(); renderFeatures(); renderFeatureUsers();
   renderWidgets(); renderHours(); renderWeekdays(); renderBreakdowns(); renderTable();
   renderReport();   // まとめなので最後に置く
   const t = state.updatedAt;
@@ -1446,12 +1680,31 @@ function buildDemoData() {
   state.daily = daily;
   state.totals = { events: totalEvents, tabs: totalTabs,
                    summary: { sessions: totalSessions, events: totalEventCount, installs } };
+
+  // 実人数は日別の合計より小さくなる（同じ人が週に何日も開くため）。
+  // 1人あたり 週3.5日・月9.5日 使う想定で逆算する。
+  const weekly = {}, monthly = {};
+  for (const [d, v] of Object.entries(daily)) {
+    const wk = isoWeekKey(d), mo = monthKeyOf(d);
+    (weekly[wk] ??= { dau: 0, newUsers: 0 });
+    (monthly[mo] ??= { dau: 0, newUsers: 0 });
+    weekly[wk].dau += v.summary.activeUsers;
+    weekly[wk].newUsers += v.summary.newUsers;
+    monthly[mo].dau += v.summary.activeUsers;
+    monthly[mo].newUsers += v.summary.newUsers;
+  }
+  state.weekly = Object.fromEntries(Object.entries(weekly).map(([k, v]) =>
+    [k, { activeUsers: Math.round(v.dau / 3.5), newUsers: v.newUsers }]));
+  state.monthly = Object.fromEntries(Object.entries(monthly).map(([k, v]) =>
+    [k, { activeUsers: Math.round(v.dau / 9.5), newUsers: v.newUsers }]));
 }
 
 let resizeTimer;
 addEventListener("resize", () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => { if (!$("#app").hidden) { renderTrend(); renderHours(); } }, 180);
+  resizeTimer = setTimeout(() => {
+    if (!$("#app").hidden) { renderUsers(); renderTrend(); renderHours(); }
+  }, 180);
 });
 
 main();
