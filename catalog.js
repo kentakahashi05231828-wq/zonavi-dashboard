@@ -233,6 +233,29 @@ export const WIDGET_FAMILY_ORDER = Object.keys(WIDGET_FAMILY_LABELS);
 
 export const WIDGET_COUNT_LABELS = { w1: "1個", w2: "2個", w3_4: "3〜4個", w5plus: "5個以上" };
 
+/**
+ * ホーム画面のアプリバー表示設定。
+ * アプリ側 HomeView の AppBarDisplayPreference / AppBarSlot と 1:1 で対応する。
+ * default は「一度も設定を変えていない端末」で、中身は既定＝切り替え・4項目すべて。
+ */
+export const APPBAR_MODES = [
+  { key: "default", label: "デフォルトのまま", note: "設定を一度も変えていない（切り替え・4項目すべて）" },
+  { key: "cycling", label: "切り替え",         note: "複数項目を自動ローテーション" },
+  { key: "single",  label: "固定",             note: "1つの項目をずっと表示" },
+];
+
+/** アプリバーに出せる項目 */
+export const APPBAR_SLOTS = [
+  { key: "weather",   label: "天気",         note: "現在の天気と気温" },
+  { key: "date",      label: "日付",         note: "今日の日付と曜日" },
+  { key: "classInfo", label: "授業",         note: "現在・次の授業" },
+  { key: "hanako",    label: "花子＋ZONAVI", note: "キャラクターイラスト" },
+];
+export const lookupSlot = key =>
+  APPBAR_SLOTS.find(s => s.key === key) ?? { key, label: key, note: "" };
+
+export const APPBAR_COUNT_LABELS = { c1: "1項目", c2: "2項目", c3: "3項目", c4: "4項目（すべて）" };
+
 /** 内訳カードの表示設定 */
 export const BREAKDOWNS = [
   { key: "model",    label: "機種",                 format: deviceName, limit: 10, since: true },

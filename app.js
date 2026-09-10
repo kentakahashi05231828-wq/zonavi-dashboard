@@ -2,6 +2,7 @@ import { firebaseConfig, isConfigured } from "./firebase-config.js";
 import {
   TABS, APP_GROUP, EVENTS, BREAKDOWNS, DOW_LABELS, lookupEvent, tabOf,
   FEATURES, lookupFeature, WIDGETS, lookupWidget,
+  APPBAR_MODES, APPBAR_SLOTS, lookupSlot, APPBAR_COUNT_LABELS,
   WIDGET_FAMILY_LABELS, WIDGET_FAMILY_ORDER, WIDGET_COUNT_LABELS,
 } from "./catalog.js";
 
@@ -762,6 +763,104 @@ function renderWidgets() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// アプリバーの表示設定
+//
+// ホーム上部のバーに何を出すか。既定は「切り替え・4項目すべて」で、
+// 設定を一度も開いていない端末は default として別に数える。
+// ─────────────────────────────────────────────────────────────
+function renderAppBar() {
+  const host = $("#appbar"); host.innerHTML = "";
+  const days = rangeDaysList();
+  const modes = sumGroup(days, "appbar");
+  const fixed = sumGroup(days, "appbarFixed");
+  const cycle = sumGroup(days, "appbarCycle");
+  const count = sumGroup(days, "appbarCycleCount");
+  const total = sumOf(modes);
+  if (!total) {
+    host.append(el("div", { class: "empty" }, "アプリのアップデート後に届きます"));
+    return;
+  }
+
+  const nDefault = Number(modes.default) || 0;
+  const nCycling = Number(modes.cycling) || 0;
+  const nSingle  = Number(modes.single) || 0;
+
+  host.append(el("div", { class: "grid kpi" }, APPBAR_MODES.map(m => {
+    const n = Number(modes[m.key]) || 0;
+    return el("div", { class: "card kpi-tile" },
+      el("div", { class: "label", title: m.note }, m.label),
+      el("div", { class: "value num" }, fmt(n)),
+      el("div", { class: "delta flat" }, el("span", { class: "jp" }, `${pct(n, total)}（延べ端末）`)));
+  })));
+
+  const slotCard = (title, hint, counts, denom, tone) => {
+    const rows = APPBAR_SLOTS.map(sl => ({ ...sl, n: Number(counts[sl.key]) || 0 }));
+    for (const k of Object.keys(counts)) {
+      if (!rows.some(r => r.key === k)) rows.push({ ...lookupSlot(k), n: Number(counts[k]) || 0 });
+    }
+    const card = el("div", { class: "card" },
+      el("h3", { style: "font-size:13px;margin-bottom:4px" }, title),
+      el("p", { class: "hint", style: "margin:0 0 12px" }, hint));
+    if (!denom || !rows.some(r => r.n > 0)) {
+      card.append(el("div", { class: "empty" }, "この期間は該当する端末がありません"));
+      return card;
+    }
+    const max = Math.max(...rows.map(r => r.n));
+    const rank = el("div", { class: "rank" });
+    for (const r of rows.sort((a, b) => b.n - a.n)) {
+      const row = el("div", { class: "rank-row", style: "grid-template-columns:minmax(110px,1fr) 1fr auto" },
+        el("div", { class: "name", title: r.note },
+          el("span", { class: "dot", style: `background:${tone}` }),
+          el("span", { class: "txt" }, r.label)),
+        el("div", { class: "track" },
+          el("div", { class: "fill", style: `width:${max ? (r.n / max) * 100 : 0}%;background:${tone}` })),
+        el("div", { class: "val num" }, fmt(r.n), el("span", { class: "share" }, pct(r.n, denom))));
+      row.addEventListener("pointerenter", ev => showTip(ev, r.label,
+        [[r.note || "項目", ""], ["端末（延べ）", fmt(r.n)], ["割合", pct(r.n, denom)]].filter(x => x[1] !== "")));
+      row.addEventListener("pointermove", moveTip);
+      row.addEventListener("pointerleave", hideTip);
+      rank.append(row);
+    }
+    card.append(rank);
+    return card;
+  };
+
+  const cntRows = Object.keys(APPBAR_COUNT_LABELS)
+    .map(k => ({ key: k, label: APPBAR_COUNT_LABELS[k], n: Number(count[k]) || 0 }))
+    .filter(r => r.n > 0);
+  const cntCard = el("div", { class: "card" },
+    el("h3", { style: "font-size:13px;margin-bottom:4px" }, "切り替えている項目数"),
+    el("p", { class: "hint", style: "margin:0 0 12px" }, "切り替えにしている端末が、いくつ回しているか。"));
+  if (!cntRows.length) cntCard.append(el("div", { class: "empty" }, "この期間は該当する端末がありません"));
+  else {
+    const max = Math.max(...cntRows.map(r => r.n));
+    const rank = el("div", { class: "rank" });
+    for (const r of cntRows) {
+      rank.append(el("div", { class: "rank-row", style: "grid-template-columns:minmax(110px,1fr) 1fr auto" },
+        el("div", { class: "name" }, el("span", { class: "txt" }, r.label)),
+        el("div", { class: "track" },
+          el("div", { class: "fill", style: `width:${(r.n / max) * 100}%;background:${tabColor("home")}` })),
+        el("div", { class: "val num" }, fmt(r.n), el("span", { class: "share" }, pct(r.n, nCycling)))));
+    }
+    cntCard.append(rank);
+  }
+
+  host.append(el("div", { class: "grid two", style: "margin-top:14px" },
+    slotCard("固定のとき、何を出しているか",
+             `「固定」にしている ${fmt(nSingle)} 端末の内訳。`,
+             fixed, nSingle, tabColor("schedule")),
+    el("div", { class: "grid", style: "gap:14px;align-content:start" },
+      slotCard("切り替えに入れている項目",
+               `「切り替え」にしている ${fmt(nCycling)} 端末のうち、その項目を回している割合。1端末が複数選べます。`,
+               cycle, nCycling, tabColor("home")),
+      cntCard),
+  ));
+
+  host.append(el("p", { class: "hint", style: "margin-top:12px" },
+    `「デフォルトのまま」の ${fmt(nDefault)} 端末は、切り替え・4項目すべての状態です（設定を触っていないため、上の2枚には含みません）。`));
+}
+
+// ─────────────────────────────────────────────────────────────
 // 内訳（バージョン・OS・端末・言語・テーマ・継続日数）
 // ─────────────────────────────────────────────────────────────
 function renderBreakdowns() {
@@ -903,6 +1002,23 @@ function exportCSV() {
       if (n > 0) lines.push([f.label, f.key, n, active > 0 ? `${((n / active) * 100).toFixed(1)}%` : ""]);
     }
   }
+  const ab = sumGroup(days, "appbar");
+  if (Object.keys(ab).length) {
+    const abTotal = Object.values(ab).reduce((a, b) => a + (Number(b) || 0), 0);
+    lines.push([]);
+    lines.push(["アプリバー表示モード", "キー", "端末（延べ）", "割合"]);
+    for (const m of APPBAR_MODES) {
+      const n = Number(ab[m.key]) || 0;
+      lines.push([m.label, m.key, n, abTotal > 0 ? `${((n / abTotal) * 100).toFixed(1)}%` : ""]);
+    }
+    for (const [g, title] of [["appbarFixed", "アプリバー固定の項目"], ["appbarCycle", "アプリバー切り替えの項目"]]) {
+      const c = sumGroup(days, g);
+      if (!Object.keys(c).length) continue;
+      lines.push([]);
+      lines.push([title, "キー", "端末（延べ）"]);
+      for (const sl of APPBAR_SLOTS) if (c[sl.key]) lines.push([sl.label, sl.key, c[sl.key]]);
+    }
+  }
   const wk = sumGroup(days, "widgets");
   if (Object.keys(wk).length) {
     const wu = sumGroup(days, "widgetUsers");
@@ -974,6 +1090,7 @@ function collectWindow(days) {
     tabs: g("tabs"), feats: g("events"), hours: g("hours"),
     tenure: g("tenure"), notif: g("notif"), dow: g("dow"), versions: g("versions"),
     featureUsers: g("featureUsers"), widgetUsers: g("widgetUsers"), widgets: g("widgets"),
+    appbar: g("appbar"), appbarFixed: g("appbarFixed"), appbarCycle: g("appbarCycle"),
   };
 }
 
@@ -1186,6 +1303,36 @@ function buildReport(win) {
     }
   }
 
+  // アプリバーの表示設定
+  const abTotal = sumOf(cur.appbar);
+  if (abTotal > 0) {
+    const def = shareOf(cur.appbar, "default");
+    const single = shareOf(cur.appbar, "single");
+    if (def >= 0.7) {
+      add("info", `アプリバーの設定を触っていない端末が ${pctText(def)} あります`,
+          "既定（切り替え・4項目すべて）のまま使われています。設定できること自体が知られていない可能性があります。",
+          "設定への入口を分かりやすくするか、既定の構成を「実際によく選ばれている組み合わせ」に寄せる");
+    } else {
+      const topFixed = Object.entries(cur.appbarFixed).sort((a, b) => b[1] - a[1])[0];
+      add("info", `アプリバーを固定にしている端末が ${pctText(single)} あります`,
+          `設定を変えた人がそれなりにいます。`
+          + (topFixed ? `固定で一番選ばれているのは「${lookupSlot(topFixed[0]).label}」です。` : ""),
+          "固定で選ばれている項目は、既定の並びでも先頭に置く価値があります");
+    }
+    // 切り替えから外されがちな項目は、価値が低いか邪魔だと思われている
+    const cyc = Number(cur.appbar.cycling) || 0;
+    if (cyc >= 10) {
+      const dropped = APPBAR_SLOTS
+        .map(sl => ({ ...sl, n: Number(cur.appbarCycle[sl.key]) || 0 }))
+        .sort((a, b) => a.n - b.n)[0];
+      if (dropped && dropped.n / cyc < 0.5) {
+        add("info", `切り替えから「${dropped.label}」を外している人が多いです`,
+            `切り替えにしている ${fmt(cyc)} 端末のうち、${dropped.label}を回しているのは ${pct(dropped.n, cyc)} だけです。`,
+            "その項目が邪魔なのか、情報として弱いのかを確かめる。既定から外す判断材料にもなります");
+      }
+    }
+  }
+
   // 機能の利用率（人数ベース）
   if (sumOf(cur.featureUsers) > 0 && cur.activeUsers > 0) {
     const rows = FEATURES.map(f => ({ ...f, n: Number(cur.featureUsers[f.key]) || 0 }));
@@ -1374,7 +1521,7 @@ function reportAsText() {
 // ─────────────────────────────────────────────────────────────
 function render() {
   renderKPIs(); renderUsers(); renderTrend(); renderTabs(); renderFeatures(); renderFeatureUsers();
-  renderWidgets(); renderHours(); renderWeekdays(); renderBreakdowns(); renderTable();
+  renderWidgets(); renderAppBar(); renderHours(); renderWeekdays(); renderBreakdowns(); renderTable();
   renderReport();   // まとめなので最後に置く
   const t = state.updatedAt;
   $("#updated").textContent = t
@@ -1660,6 +1807,23 @@ function demoWidgets(users, rnd) {
   return { widgetUsers: { installed, none }, widgets, widgetFamily, widgetCount };
 }
 
+/** デモ用：アプリバーの表示設定。大半は既定のまま、という現実的な分布にする */
+function demoAppBar(users, rnd) {
+  const def = Math.round(users * 0.62 * (0.95 + rnd() * 0.1));
+  const single = Math.round(users * 0.16 * (0.9 + rnd() * 0.2));
+  const cycling = Math.max(0, users - def - single);
+  const part = (n, w) => Math.max(0, Math.round(n * w));
+  return {
+    appbar: { default: def, cycling, single },
+    appbarFixed: { weather: part(single, .44), classInfo: part(single, .30),
+                   date: part(single, .18), hanako: part(single, .08) },
+    appbarCycle: { weather: part(cycling, .92), classInfo: part(cycling, .78),
+                   date: part(cycling, .70), hanako: part(cycling, .41) },
+    appbarCycleCount: { c4: part(cycling, .34), c3: part(cycling, .30),
+                        c2: part(cycling, .25), c1: part(cycling, .11) },
+  };
+}
+
 function buildDemoData() {
   let seed = 20260905;
   const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
@@ -1732,6 +1896,7 @@ function buildDemoData() {
                  small: Math.round(users * 0.15), tablet: Math.round(users * 0.06) },
       featureUsers: demoFeatureUsers(users, rnd),
       ...demoWidgets(users, rnd),
+      ...demoAppBar(users, rnd),
       lang: { ja: Math.round(users * 0.93), en: Math.round(users * 0.07) },
       theme: { light: Math.round(users * 0.71), dark: Math.round(users * 0.29) },
       tenure: { d0: newUsers, d1_6: Math.round(users * 0.18),
