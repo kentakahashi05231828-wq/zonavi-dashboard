@@ -1,5 +1,9 @@
 import { firebaseConfig, isConfigured } from "./firebase-config.js";
-import { TABS, APP_GROUP, EVENTS, BREAKDOWNS, DOW_LABELS, lookupEvent, tabOf } from "./catalog.js";
+import {
+  TABS, APP_GROUP, EVENTS, BREAKDOWNS, DOW_LABELS, lookupEvent, tabOf,
+  FEATURES, lookupFeature, WIDGETS, lookupWidget,
+  WIDGET_FAMILY_LABELS, WIDGET_FAMILY_ORDER, WIDGET_COUNT_LABELS,
+} from "./catalog.js";
 
 // ─────────────────────────────────────────────────────────────
 // ユーティリティ
@@ -423,6 +427,135 @@ function renderHours() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// 機能の利用率（人数ベース）
+//
+// 「回数」では 1 人が何度も押したのか、多くの人が 1 回ずつ押したのかが分からない。
+// featureUsers は 1端末1日1カウントなので、アクティブ端末で割ると
+// 「アプリを開いた人のうち何%がその機能を使ったか」として読める。
+// ─────────────────────────────────────────────────────────────
+function renderFeatureUsers() {
+  const host = $("#feature-users"); host.innerHTML = "";
+  const days = rangeDaysList();
+  const counts = sumGroup(days, "featureUsers");
+  const active = sumSummary(days, "activeUsers");
+  const rows = FEATURES.map(f => ({ ...f, n: Number(counts[f.key]) || 0 }));
+  // カタログにない機能（アプリ側だけ先に追加された場合）も拾う
+  for (const k of Object.keys(counts)) {
+    if (!rows.some(r => r.key === k)) rows.push({ ...lookupFeature(k), n: Number(counts[k]) || 0 });
+  }
+  if (!rows.some(r => r.n > 0)) {
+    host.append(el("div", { class: "empty" }, "アプリのアップデート後に届きます"));
+    return;
+  }
+  rows.sort((a, b) => b.n - a.n);
+  const max = Math.max(...rows.map(r => r.n));
+
+  const rank = el("div", { class: "rank" });
+  for (const r of rows) {
+    const share = active > 0 ? r.n / active : 0;
+    const row = el("div", { class: "rank-row" },
+      el("div", { class: "name", title: r.key },
+        el("span", { class: "dot", style: `background:${tabColor(r.tab)}` }),
+        el("span", { class: "txt" }, r.label)),
+      el("div", { class: "track" },
+        el("div", { class: "fill", style: `width:${max ? (r.n / max) * 100 : 0}%;background:${tabColor(r.tab)}` })),
+      el("div", { class: "val num" }, fmt(r.n),
+        el("span", { class: "share" }, active > 0 ? `${(share * 100).toFixed(1)}%` : "—")));
+    row.addEventListener("pointerenter", ev => showTip(ev, r.label, [
+      ["使った端末（延べ）", fmt(r.n)],
+      ["アクティブ端末比", active > 0 ? `${(share * 100).toFixed(1)}%` : "—"],
+    ]));
+    row.addEventListener("pointermove", moveTip);
+    row.addEventListener("pointerleave", hideTip);
+    rank.append(row);
+  }
+  host.append(rank);
+  host.append(el("div", { style: "font-size:12px;color:var(--ink-muted);margin-top:12px" },
+    `右の％は、この期間のアクティブ端末（延べ ${fmt(active)}）に対する割合です。`));
+}
+
+// ─────────────────────────────────────────────────────────────
+// ウィジェット（追加している人と、その内訳）
+// ─────────────────────────────────────────────────────────────
+function renderWidgets() {
+  const host = $("#widgets"); host.innerHTML = "";
+  const days = rangeDaysList();
+  const users  = sumGroup(days, "widgetUsers");
+  const kinds  = sumGroup(days, "widgets");
+  const family = sumGroup(days, "widgetFamily");
+  const count  = sumGroup(days, "widgetCount");
+
+  const installed = Number(users.installed) || 0;
+  const none      = Number(users.none) || 0;
+  const measured  = installed + none;
+  if (!measured) {
+    host.append(el("div", { class: "empty" }, "アプリのアップデート後に届きます"));
+    return;
+  }
+
+  // 追加率
+  host.append(el("div", { class: "grid kpi", style: "margin-bottom:18px" },
+    el("div", { class: "card kpi-tile" },
+      el("div", { class: "label", title: "ウィジェットを1つ以上置いている端末 ÷ 計測できた端末" }, "ウィジェット追加率"),
+      el("div", { class: "value num" }, pct(installed, measured)),
+      el("div", { class: "delta flat" }, el("span", { class: "jp" },
+        `${fmt(installed)} / ${fmt(measured)} 端末（延べ）`))),
+    el("div", { class: "card kpi-tile" },
+      el("div", { class: "label" }, "置いていない端末"),
+      el("div", { class: "value num" }, fmt(none)),
+      el("div", { class: "delta flat" }, el("span", { class: "jp" }, pct(none, measured)))),
+  ));
+
+  const listCard = (title, rows, note) => {
+    const card = el("div", { class: "card" },
+      el("h3", { style: "font-size:13px;margin-bottom:12px" }, title));
+    if (!rows.length) { card.append(el("div", { class: "empty" }, "データなし")); return card; }
+    const max = Math.max(...rows.map(r => r.n));
+    const rank = el("div", { class: "rank" });
+    for (const r of rows) {
+      const row = el("div", { class: "rank-row", style: "grid-template-columns:minmax(120px,1fr) 1fr auto" },
+        el("div", { class: "name", title: r.key ?? "" }, el("span", { class: "txt" }, r.label)),
+        el("div", { class: "track" },
+          el("div", { class: "fill", style: `width:${(r.n / max) * 100}%;background:${tabColor("home")}` })),
+        el("div", { class: "val num" }, fmt(r.n),
+          el("span", { class: "share" }, pct(r.n, installed))));
+      row.addEventListener("pointerenter", ev => showTip(ev, r.label,
+        [["端末（延べ）", fmt(r.n)], ["追加している人の中での割合", pct(r.n, installed)]]));
+      row.addEventListener("pointermove", moveTip);
+      row.addEventListener("pointerleave", hideTip);
+      rank.append(row);
+    }
+    card.append(rank);
+    if (note) card.append(el("div", { style: "font-size:12px;color:var(--ink-muted);margin-top:10px" }, note));
+    return card;
+  };
+
+  const kindRows = Object.entries(kinds)
+    .map(([k, v]) => ({ ...lookupWidget(k), n: Number(v) || 0 }))
+    .filter(r => r.n > 0).sort((a, b) => b.n - a.n);
+  const famRows = WIDGET_FAMILY_ORDER
+    .map(k => ({ key: k, label: WIDGET_FAMILY_LABELS[k], n: Number(family[k]) || 0 }))
+    .filter(r => r.n > 0);
+  const cntRows = Object.keys(WIDGET_COUNT_LABELS)
+    .map(k => ({ key: k, label: WIDGET_COUNT_LABELS[k], n: Number(count[k]) || 0 }))
+    .filter(r => r.n > 0);
+
+  host.append(el("div", { class: "grid two" },
+    listCard("どのウィジェットを追加しているか", kindRows,
+             "％は「ウィジェットを追加している端末」に対する割合。複数種類を置いている人はそれぞれで数えます。"),
+    el("div", { class: "grid", style: "gap:14px;align-content:start" },
+      listCard("設置場所とサイズ", famRows),
+      listCard("1端末あたりの設置数", cntRows)),
+  ));
+
+  const unused = WIDGETS.filter(w => !(Number(kinds[w.key]) > 0));
+  if (unused.length) {
+    host.append(el("div", { style: "font-size:12px;color:var(--ink-muted);margin-top:14px" },
+      `この期間に一度も置かれていないウィジェット: ${unused.map(w => w.label).join("、")}`));
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // 内訳（バージョン・OS・端末・言語・テーマ・継続日数）
 // ─────────────────────────────────────────────────────────────
 function renderBreakdowns() {
@@ -536,6 +669,26 @@ function exportCSV() {
     const s = state.daily[d]?.summary || {};
     lines.push([d, s.activeUsers || 0, s.sessions || 0, s.newUsers || 0, s.events || 0]);
   }
+  const fu = sumGroup(days, "featureUsers");
+  if (Object.keys(fu).length) {
+    const active = sumSummary(days, "activeUsers");
+    lines.push([]);
+    lines.push(["機能（人数ベース）", "キー", "使った端末（延べ）", "アクティブ端末比"]);
+    for (const f of FEATURES) {
+      const n = Number(fu[f.key]) || 0;
+      if (n > 0) lines.push([f.label, f.key, n, active > 0 ? `${((n / active) * 100).toFixed(1)}%` : ""]);
+    }
+  }
+  const wk = sumGroup(days, "widgets");
+  if (Object.keys(wk).length) {
+    const wu = sumGroup(days, "widgetUsers");
+    const inst = Number(wu.installed) || 0;
+    lines.push([]);
+    lines.push(["ウィジェット", "kind", "設置端末（延べ）", "追加者に対する割合"]);
+    for (const [k, v] of Object.entries(wk).sort((a, x) => x[1] - a[1])) {
+      lines.push([lookupWidget(k).label, k, v, inst > 0 ? `${((v / inst) * 100).toFixed(1)}%` : ""]);
+    }
+  }
   for (const b of BREAKDOWNS) {
     const counts = sumGroup(days, b.key);
     const rows = Object.entries(counts).map(([k, v]) => [k, Number(v) || 0]).filter(r => r[1] > 0);
@@ -596,6 +749,7 @@ function collectWindow(days) {
     events:      sumSummary(days, "events"),
     tabs: g("tabs"), feats: g("events"), hours: g("hours"),
     tenure: g("tenure"), notif: g("notif"), dow: g("dow"), versions: g("versions"),
+    featureUsers: g("featureUsers"), widgetUsers: g("widgetUsers"), widgets: g("widgets"),
   };
 }
 
@@ -770,6 +924,45 @@ function buildReport(win) {
         "「何を聞けるか」の例文を最初から並べて、タップだけで送れるようにする");
   }
 
+  // ウィジェット
+  const wIn = Number(cur.widgetUsers.installed) || 0, wNo = Number(cur.widgetUsers.none) || 0;
+  if (wIn + wNo > 0) {
+    const r = wIn / (wIn + wNo);
+    const top = Object.entries(cur.widgets).sort((a, b) => b[1] - a[1])[0];
+    const topLabel = top ? lookupWidget(top[0]).label : null;
+    if (r < 0.3) {
+      add("warn", `ウィジェットを追加しているのは ${pctText(r)} だけです`,
+          `ウィジェットは「アプリを開かなくてもバスの時刻が分かる」という ZONAVI の一番の強みですが、${pctText(1 - r)} の端末には置かれていません。`
+          + (topLabel ? `置かれている中では「${topLabel}」が最多です。` : ""),
+          "設定やオンボーディングで、追加手順を画像つきで案内する（iOS のウィジェット追加は導線が深く、知られていない）");
+    } else {
+      add("good", `ウィジェットの追加率は ${pctText(r)} です`,
+          (topLabel ? `一番置かれているのは「${topLabel}」。` : "") + "アプリを開かずに使われている分は、セッション数には表れません。");
+    }
+  }
+
+  // 機能の利用率（人数ベース）
+  if (sumOf(cur.featureUsers) > 0 && cur.activeUsers > 0) {
+    const rows = FEATURES.map(f => ({ ...f, n: Number(cur.featureUsers[f.key]) || 0 }));
+    const ranked = [...rows].sort((a, b) => b.n - a.n);
+    const top = ranked[0];
+    if (top && top.n > 0) {
+      add("info", `一番多くの人が使った機能は「${top.label}」です`,
+          `この期間のアクティブ端末の ${pct(top.n, cur.activeUsers)} が触っています。次点は「${ranked[1]?.label ?? "—"}」（${pct(ranked[1]?.n ?? 0, cur.activeUsers)}）。`);
+    }
+    const zero = rows.filter(r => r.n === 0);
+    const weak = rows.filter(r => r.n > 0 && r.n / cur.activeUsers < 0.05);
+    if (zero.length) {
+      add("warn", `この期間に誰も使わなかった機能が ${zero.length} 件あります`,
+          zero.map(r => `「${r.label}」`).join("、") + "。回数が 0 ではなく、使った人が 0 です。",
+          "存在に気づかれていないのか、要らないのかを切り分ける。前者なら入口を、後者なら畳む判断を");
+    } else if (weak.length) {
+      add("info", `使う人が5%未満の機能が ${weak.length} 件あります`,
+          weak.map(r => `「${r.label}」${pct(r.n, cur.activeUsers)}`).join("、"),
+          "一部の人にだけ深く刺さっているのか、単に気づかれていないのかを、回数と合わせて確認する");
+    }
+  }
+
   // 使われていない機能
   const unused = EVENTS.filter(e => !(Number(cur.feats[e.key]) > 0));
   if (cur.events > 0 && unused.length) {
@@ -935,8 +1128,9 @@ function reportAsText() {
 // 描画
 // ─────────────────────────────────────────────────────────────
 function render() {
-  renderReport(); renderKPIs(); renderTrend(); renderTabs(); renderFeatures();
-  renderHours(); renderWeekdays(); renderBreakdowns(); renderTable();
+  renderKPIs(); renderTrend(); renderTabs(); renderFeatures(); renderFeatureUsers();
+  renderWidgets(); renderHours(); renderWeekdays(); renderBreakdowns(); renderTable();
+  renderReport();   // まとめなので最後に置く
   const t = state.updatedAt;
   $("#updated").textContent = t
     ? `最終更新 ${t.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`
@@ -1122,6 +1316,55 @@ function demoModels(users) {
   return out;
 }
 
+/** デモ用：機能ごとの利用端末数。アクティブ端末に対する現実的な利用率で配る */
+function demoFeatureUsers(users, rnd) {
+  const share = {
+    bus_time: 0.72, timetable: 0.46, bus_notif: 0.31, cafeteria: 0.28, ext_links: 0.19,
+    notice: 0.14, ai_chat: 0.11, annual: 0.09, memo: 0.07, credits: 0.06,
+    appbar: 0.05, timetable_ocr: 0.03, share: 0.02, feedback: 0.015,
+  };
+  const out = {};
+  for (const f of FEATURES) {
+    const n = Math.round(users * (share[f.key] ?? 0.02) * (0.85 + rnd() * 0.3));
+    if (n > 0) out[f.key] = Math.min(n, users);
+  }
+  return out;
+}
+
+/** デモ用：ウィジェットの設置状況。1端末が複数種類を置くので kind の合計は installed を超える */
+function demoWidgets(users, rnd) {
+  const installed = Math.round(users * 0.38 * (0.9 + rnd() * 0.2));
+  const none = Math.max(0, users - installed);
+  const kindShare = {
+    BusToUniWidget: 0.44, BusToStaWidget: 0.31, BusTimetableWidget: 0.29,
+    TodayScheduleWidget: 0.22, BusCountdownCircularWidget: 0.18, CafeteriaMenuWidget: 0.13,
+    SmallCafeteriaWidget: 0.11, BusAutoRectangularWidget: 0.09,
+    FullScheduleWidget: 0.08, BusPlusMenuWidget: 0.06,
+  };
+  const widgets = {};
+  for (const w of WIDGETS) {
+    const n = Math.round(installed * (kindShare[w.key] ?? 0.05) * (0.85 + rnd() * 0.3));
+    if (n > 0) widgets[w.key] = n;
+  }
+  const famShare = { systemSmall: 0.58, systemMedium: 0.45, systemLarge: 0.12,
+                     accessoryCircular: 0.18, accessoryRectangular: 0.09 };
+  const widgetFamily = {};
+  for (const [k, v] of Object.entries(famShare)) {
+    const n = Math.round(installed * v);
+    if (n > 0) widgetFamily[k] = n;
+  }
+  const cnt = { w1: 0.52, w2: 0.29, w3_4: 0.15, w5plus: 0.04 };
+  const widgetCount = {};
+  let left = installed;
+  const cntKeys = Object.keys(cnt);
+  cntKeys.forEach((k, i) => {
+    const n = i === cntKeys.length - 1 ? Math.max(0, left) : Math.round(installed * cnt[k]);
+    if (n > 0) widgetCount[k] = n;
+    left -= n;
+  });
+  return { widgetUsers: { installed, none }, widgets, widgetFamily, widgetCount };
+}
+
 function buildDemoData() {
   let seed = 20260905;
   const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
@@ -1192,6 +1435,8 @@ function buildDemoData() {
                notDetermined: Math.round(users * 0.17) },
       display: { standard: Math.round(users * 0.55), large: Math.round(users * 0.24),
                  small: Math.round(users * 0.15), tablet: Math.round(users * 0.06) },
+      featureUsers: demoFeatureUsers(users, rnd),
+      ...demoWidgets(users, rnd),
       lang: { ja: Math.round(users * 0.93), en: Math.round(users * 0.07) },
       theme: { light: Math.round(users * 0.71), dark: Math.round(users * 0.29) },
       tenure: { d0: newUsers, d1_6: Math.round(users * 0.18),

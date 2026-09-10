@@ -56,21 +56,6 @@
       <div class="card" id="load-error" hidden
            style="margin-top:16px;border-color:var(--critical);color:var(--ink)"></div>
 
-      <!-- 自動分析レポート -->
-      <section class="section">
-        <header>
-          <h2>レポート</h2>
-          <span class="hint">直近の期間と、その前の同じ長さの期間を比べて自動でまとめます。</span>
-          <span class="spacer"></span>
-          <div class="seg" id="report-seg" role="group" aria-label="比較の単位">
-            <button data-window="week" aria-pressed="true">週次</button>
-            <button data-window="month">月次</button>
-          </div>
-          <button class="btn" id="report-copy">レポートをコピー</button>
-        </header>
-        <div class="card"><div id="report"></div></div>
-      </section>
-
       <!-- KPI -->
       <section class="section">
         <header><h2>サマリー</h2>
@@ -109,6 +94,20 @@
         <div class="card"><div id="features"></div></div>
       </section>
 
+      <!-- 機能の利用率（人数ベース） -->
+      <section class="section">
+        <header><h2>機能ごとの利用者数</h2>
+          <span class="hint">回数ではなく「何台がその機能を使ったか」。1端末1日1カウントなので、少数が何度も押した機能と、多くの人が触った機能を区別できます。</span></header>
+        <div class="card"><div id="feature-users"></div></div>
+      </section>
+
+      <!-- ウィジェット -->
+      <section class="section">
+        <header><h2>ウィジェット</h2>
+          <span class="hint">ホーム画面・ロック画面に置かれているウィジェットの実測。アプリを開かずに使われている分が見えます。</span></header>
+        <div id="widgets"></div>
+      </section>
+
       <!-- 時間帯 -->
       <section class="section">
         <header><h2>時間帯別の利用</h2>
@@ -137,6 +136,21 @@
           <span class="spacer"></span>
           <button class="btn" id="export">CSV でダウンロード</button></header>
         <div class="card"><div id="table"></div></div>
+      </section>
+
+      <!-- 自動分析レポート -->
+      <section class="section">
+        <header>
+          <h2>レポート（自動分析）</h2>
+          <span class="hint">直近の期間と、その前の同じ長さの期間を比べて自動でまとめます。</span>
+          <span class="spacer"></span>
+          <div class="seg" id="report-seg" role="group" aria-label="比較の単位">
+            <button data-window="week" aria-pressed="true">週次</button>
+            <button data-window="month">月次</button>
+          </div>
+          <button class="btn" id="report-copy">レポートをコピー</button>
+        </header>
+        <div class="card"><div id="report"></div></div>
       </section>
 
       <footer style="margin-top:40px;font-size:12px;color:var(--ink-muted);line-height:1.9">

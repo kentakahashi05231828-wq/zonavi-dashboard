@@ -176,6 +176,63 @@ export const DISPLAY_LABELS = {
   tablet:   "タブレット",
 };
 
+/**
+ * 機能ごとの「使った端末数」のラベル。
+ * アプリ側 AnalyticsService.featureOfEvent の値と 1:1 で対応する。
+ * 回数（EVENTS）と違い、1端末1日1カウントなので「何人が使ったか」として読める。
+ */
+export const FEATURES = [
+  { key: "bus_time",      tab: "home",     label: "バス時刻の確認" },
+  { key: "bus_notif",     tab: "home",     label: "バス通知" },
+  { key: "cafeteria",     tab: "home",     label: "学食メニュー" },
+  { key: "notice",        tab: "home",     label: "お知らせ" },
+  { key: "ai_chat",       tab: "home",     label: "AIチャット" },
+  { key: "appbar",        tab: "home",     label: "アプリバー表示設定" },
+  { key: "timetable",     tab: "schedule", label: "時間割" },
+  { key: "timetable_ocr", tab: "schedule", label: "時間割の画像読み取り" },
+  { key: "annual",        tab: "schedule", label: "年間スケジュール" },
+  { key: "memo",          tab: "schedule", label: "メモ" },
+  { key: "credits",       tab: "schedule", label: "単位一覧" },
+  { key: "share",         tab: "links",    label: "シェア" },
+  { key: "feedback",      tab: "links",    label: "フィードバック" },
+  { key: "ext_links",     tab: "links",    label: "外部サイトへのリンク" },
+];
+export const lookupFeature = key =>
+  FEATURES.find(f => f.key === key) ?? { key, tab: "app", label: key };
+
+/**
+ * ウィジェットの種類。key は WidgetKit の kind（ZONAVIWidgetBundle と一致）。
+ * label はアプリ内の configurationDisplayName に合わせてある。
+ */
+export const WIDGETS = [
+  { key: "BusToUniWidget",             family: "systemSmall",          label: "バス 大学行き" },
+  { key: "BusToStaWidget",             family: "systemSmall",          label: "バス 相原駅行き" },
+  { key: "SmallCafeteriaWidget",       family: "systemSmall",          label: "学食メニュー（小）" },
+  { key: "BusTimetableWidget",         family: "systemMedium",         label: "バス時刻表" },
+  { key: "TodayScheduleWidget",        family: "systemMedium",         label: "今日の時間割" },
+  { key: "CafeteriaMenuWidget",        family: "systemMedium",         label: "学食メニュー" },
+  { key: "FullScheduleWidget",         family: "systemLarge",          label: "今日の時間割（全コマ）" },
+  { key: "BusPlusMenuWidget",          family: "systemLarge",          label: "バス＋学食メニュー" },
+  { key: "BusCountdownCircularWidget", family: "accessoryCircular",    label: "バスカウントダウン（円）" },
+  { key: "BusAutoRectangularWidget",   family: "accessoryRectangular", label: "バスカウントダウン（横長）" },
+];
+export const lookupWidget = key =>
+  WIDGETS.find(w => w.key === key) ?? { key, label: key, family: "other" };
+
+export const WIDGET_FAMILY_LABELS = {
+  systemSmall:          "ホーム画面・小",
+  systemMedium:         "ホーム画面・中",
+  systemLarge:          "ホーム画面・大",
+  systemExtraLarge:     "ホーム画面・特大",
+  accessoryCircular:    "ロック画面・円",
+  accessoryRectangular: "ロック画面・横長",
+  accessoryInline:      "ロック画面・1行",
+  other:                "その他",
+};
+export const WIDGET_FAMILY_ORDER = Object.keys(WIDGET_FAMILY_LABELS);
+
+export const WIDGET_COUNT_LABELS = { w1: "1個", w2: "2個", w3_4: "3〜4個", w5plus: "5個以上" };
+
 /** 内訳カードの表示設定 */
 export const BREAKDOWNS = [
   { key: "model",    label: "機種",                 format: deviceName, limit: 10, since: true },
