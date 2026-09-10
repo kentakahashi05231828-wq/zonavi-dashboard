@@ -515,3 +515,8 @@ main > footer p { margin: 0; }
   .wordmark { height: 19px; }
   .sec-ic { width: 18px; height: 18px; }
 }
+
+/* タップ端末ではツールチップを完全に出さない（JS 側でも止めているが念のため） */
+@media (hover: none), (pointer: coarse) {
+  #tip { display: none !important; }
+}

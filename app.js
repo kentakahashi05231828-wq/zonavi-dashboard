@@ -144,7 +144,17 @@ function toggleTheme() {
 // ツールチップ
 // ─────────────────────────────────────────────────────────────
 const tip = { node: null };
+
+/**
+ * ホバーできる環境かどうか。
+ * タップ操作の端末では pointerenter は来るが pointerleave が来ないことがあり、
+ * ツールチップが画面の途中に貼り付いたまま残ってしまう。だから出さない。
+ * 割合やキーは各行に表示してあるので、出さなくても読める情報は失われない。
+ */
+const canHover = () => matchMedia("(hover: hover) and (pointer: fine)").matches;
+
 function showTip(evt, title, rows) {
+  if (!canHover()) return;
   if (!tip.node) { tip.node = el("div", { id: "tip" }); document.body.append(tip.node); }
   tip.node.innerHTML = "";
   tip.node.append(el("div", { class: "t" }, title));
@@ -155,7 +165,7 @@ function showTip(evt, title, rows) {
   moveTip(evt);
 }
 function moveTip(evt) {
-  if (!tip.node) return;
+  if (!tip.node || !canHover()) return;
   const pad = 14, r = tip.node.getBoundingClientRect();
   let x = evt.clientX + pad, y = evt.clientY + pad;
   if (x + r.width  > innerWidth  - 8) x = evt.clientX - r.width  - pad;
@@ -526,6 +536,7 @@ function renderTrend() {
   const hit = svgEl("rect", { x: pad.l, y: pad.t, width: iw, height: ih, fill: "transparent" });
   svg.append(hit);
   hit.addEventListener("pointermove", ev => {
+    if (!canHover()) return;
     const box = svg.getBoundingClientRect();
     const px = ((ev.clientX - box.left) / box.width) * W;
     const i = Math.max(0, Math.min(days.length - 1,
@@ -536,9 +547,11 @@ function renderTrend() {
     });
     showTip(ev, days[i], data.map(s => [s.label, fmt(s.values[i])]));
   });
-  hit.addEventListener("pointerleave", () => {
+  const clearHover = () => {
     cross.setAttribute("opacity", 0); dots.forEach(d => d.setAttribute("opacity", 0)); hideTip();
-  });
+  };
+  hit.addEventListener("pointerleave", clearHover);
+  hit.addEventListener("pointercancel", clearHover);   // スクロールで中断されたとき
 
   host.append(el("div", { class: "chart" }, svg));
 
@@ -635,7 +648,8 @@ function renderFeatures() {
           el("span", { class: "txt" }, x.label)),
         el("div", { class: "track" },
           el("div", { class: "fill", style: `width:${(x.n / max) * 100}%;background:${tabColor(g.id)}` })),
-        el("div", { class: "val num" }, fmt(x.n)));
+        el("div", { class: "val num" }, fmt(x.n),
+          el("span", { class: "share" }, pct(x.n, subtotal))));
       row.addEventListener("pointerenter", ev =>
         showTip(ev, x.label, [["回数", fmt(x.n)], ["キー", x.key], ["タブ内比", pct(x.n, subtotal)]]));
       row.addEventListener("pointermove", moveTip);
