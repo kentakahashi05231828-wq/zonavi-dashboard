@@ -322,7 +322,24 @@ main { max-width: var(--max-width); margin: 0 auto; padding: var(--s-xl) var(--s
 .grid.two   { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
 .grid.three { grid-template-columns: repeat(auto-fit, minmax(264px, 1fr)); }
 
+/* KPI は上から順に重要度が高い。バスの青を濃淡で振って、
+   1つの項目の中でもどれを先に見ればいいかが分かるようにする。
+   色は検証済みの単一色相ランプ（--seq-*）から取っているので、
+   濃さの差が値の差ではなく「順位」として読める。 */
 .kpi-tile { transition: transform .18s ease, border-color .18s ease; }
+.kpi-tile::before {
+  content: ""; display: block; height: 4px; width: 18px; border-radius: 2px;
+  background: var(--seq-2); margin-bottom: 9px;
+}
+.sec-body .grid.kpi > .card:nth-child(1)::before { background: var(--seq-6); width: 34px; }
+.sec-body .grid.kpi > .card:nth-child(2)::before { background: var(--seq-5); width: 28px; }
+.sec-body .grid.kpi > .card:nth-child(3)::before { background: var(--seq-4); width: 24px; }
+.sec-body .grid.kpi > .card:nth-child(4)::before { background: var(--seq-3); width: 21px; }
+
+/* 先頭＝そのセクションで最初に見る数字。ここだけ青地と青字にして視線の入口をつくる。
+   2番目以降を黒のままにするのは、青を2つ並べると順位が読めなくなるため */
+.sec-body .grid.kpi > .card:nth-child(1) .value { color: var(--seq-6); }
+.sec-body .grid.kpi > .card:nth-child(1) .label { color: var(--ink); font-weight: 700; }
 .kpi-tile:hover { transform: translateY(-3px); border-color: var(--border-hi); }
 .kpi-tile .label {
   font-size: 11.5px; color: var(--ink-2); display: flex; align-items: center; gap: 6px;
@@ -493,8 +510,15 @@ main > footer p { margin: 0; }
   .sec-body { padding: 14px; }
   /* 2 列に折り返すと縦罫の位置が合わなくなるので、スマホではカードに戻す */
   .sec-body .grid.kpi { gap: var(--s-sm); }
-  .sec-body .grid.kpi > .card {
-    border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--s-md) 14px;
+  .sec-body .grid.kpi > .card,
+  .sec-body .grid.kpi > .card:first-child {
+    border: 1px solid var(--border); border-radius: var(--r-md);
+    padding: var(--s-md) 14px;   /* セル用の padding-left:2px を打ち消す */
+  }
+  /* スマホはカード表示なので、主役だけ薄い青地にして一目で分かるようにする */
+  .sec-body .grid.kpi > .card:nth-child(1) {
+    background: color-mix(in srgb, var(--tab-home) 8%, transparent);
+    border-color: color-mix(in srgb, var(--tab-home) 32%, transparent);
   }
 
   .grid { gap: var(--s-sm); }
