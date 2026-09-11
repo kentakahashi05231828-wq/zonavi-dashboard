@@ -633,7 +633,6 @@ function renderFeatures() {
     : items;
   if (!filtered.length) { host.append(el("div", { class: "empty" }, "一致する機能がありません")); return; }
 
-  const max = Math.max(...filtered.map(x => x.n));
   const groups = [...TABS, APP_GROUP]
     .map(g => ({ g, list: filtered.filter(x => x.tab === g.id).sort((a, b) => b.n - a.n) }))
     .filter(x => x.list.length)
@@ -641,6 +640,9 @@ function renderFeatures() {
 
   for (const { g, list } of groups) {
     const subtotal = list.reduce((s, x) => s + x.n, 0);
+    // 棒の長さはグループ内で比べる。「アプリ起動」のような桁違いの値に
+    // 全体を合わせると、他のグループの差がすべてつぶれてしまう
+    const gmax = Math.max(...list.map(x => x.n));
     host.append(el("div", { class: "rank-group" },
       el("span", { class: "bar", style: `background:${tabColor(g.id)}` }),
       `${g.label}`,
@@ -653,7 +655,7 @@ function renderFeatures() {
           el("span", { class: "dot", style: `background:${tabColor(g.id)}` }),
           el("span", { class: "txt" }, x.label)),
         el("div", { class: "track" },
-          el("div", { class: "fill", style: `width:${(x.n / max) * 100}%;background:${tabColor(g.id)}` })),
+          el("div", { class: "fill", style: `width:${(x.n / gmax) * 100}%;background:${tabColor(g.id)}` })),
         el("div", { class: "val num" }, fmt(x.n),
           el("span", { class: "share" }, pct(x.n, subtotal))));
       row.addEventListener("pointerenter", ev =>
@@ -663,8 +665,11 @@ function renderFeatures() {
       rank.append(row);
     }
     if (!state.showAllEvents && list.length > 6) {
-      rank.append(el("div", { class: "hint", style: "font-size:12px;color:var(--ink-muted);padding-left:2px" },
-        `ほか ${list.length - 6} 件`));
+      rank.append(el("button", { class: "more-btn", type: "button", onclick: () => {
+        state.showAllEvents = true;
+        $("#toggle-all").textContent = "上位のみ表示";
+        renderFeatures();
+      } }, `ほか ${list.length - 6} 件を表示`));
     }
     host.append(rank);
   }
@@ -1355,7 +1360,11 @@ function buildReport(win) {
                  now: depthNow, before: depthPrv, rate: rate(depthNow, depthPrv), decimals: 1 });
 
   // ── 機能ごとの増減 ──
-  const featKeys = [...new Set([...Object.keys(cur.feats), ...Object.keys(prv.feats)])];
+  // app_open はセッション開始時に自動で入る。利用者が選んだ操作ではないので、
+  // 「伸びた機能」に出してもセッション数の言い換えにしかならない
+  const AUTO_EVENTS = new Set(["app_open", "feature_tips_shown"]);
+  const featKeys = [...new Set([...Object.keys(cur.feats), ...Object.keys(prv.feats)])]
+    .filter(k => !AUTO_EVENTS.has(k));
   const moves = featKeys.map(k => {
     const a = Number(cur.feats[k]) || 0, b = Number(prv.feats[k]) || 0;
     return { ...lookupEvent(k), now: a, before: b, diff: a - b, rate: rate(a, b) };
@@ -2039,6 +2048,15 @@ function syncToggleLabel(secs) {
 // ─────────────────────────────────────────────────────────────
 // 起動
 // ─────────────────────────────────────────────────────────────
+function markScrollable() {
+  const bar = $(".bar-scroll");
+  if (!bar) return;
+  // 右端に余白が残っているときだけ、まだ先があることを示す
+  const more = bar.scrollWidth > bar.clientWidth + 1
+            && bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 1;
+  bar.classList.toggle("is-scrollable", more);
+}
+
 function wireControls() {
   initNav();
   initSections();
@@ -2075,6 +2093,8 @@ function wireControls() {
     }
     setTimeout(() => { lb.textContent = "レポートをコピー"; }, 1800);
   });
+  $(".bar-scroll")?.addEventListener("scroll", markScrollable);
+  markScrollable();
   $("#refresh").addEventListener("click", refresh);
   $("#theme-toggle").addEventListener("click", toggleTheme);
   $("#export").addEventListener("click", exportCSV);
@@ -2392,6 +2412,7 @@ addEventListener("resize", () => {
     if (open("#sec-users"))  renderUsers();
     if (open("#sec-trend"))  renderTrend();
     if (open("#sec-hours"))  renderHours();
+    markScrollable();
   }, 180);
 });
 
