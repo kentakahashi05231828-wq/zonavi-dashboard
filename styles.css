@@ -243,19 +243,30 @@ code {
 main { max-width: var(--max-width); margin: 0 auto; padding: var(--s-xl) var(--s-xl) 72px; }
 
 /* ── アコーディオン ── */
-.section { border-bottom: 1px solid var(--border); }
-.section:first-of-type { border-top: 1px solid var(--border); }
+/* セクションは「1枚の面」。パネルごと閉じて、間を地の色で離す。
+   区切り線とカードの枠が同じ 1px だと、境目なのか中身なのか判別できないため。 */
+.section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  margin-bottom: var(--s-lg);
+  overflow: hidden;                     /* ヘッダ帯を角丸で切る */
+}
 .section > summary {
   list-style: none; cursor: pointer; position: relative;
+  background: var(--surface-2);
+  border-bottom: 1px solid transparent;
   /* アイコン｜見出し｜補足 の3列。折り返してもアイコンが上に外れない */
   display: grid; grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center; column-gap: var(--s-md);
-  padding: var(--s-lg) 34px var(--s-lg) 0;
+  padding: 14px 46px 14px 18px;
 }
+.section[open] > summary { border-bottom-color: var(--border); }
 .section > summary::-webkit-details-marker { display: none; }
 .section > summary:hover h2 { color: var(--accent); }
 .section > summary h2 {
-  font-size: 15px; display: inline-flex; align-items: center; gap: var(--s-sm);
+  /* カード内の小見出し（12.5px）と差をつけて、階層が一目で分かるようにする */
+  font-size: 17px; display: inline-flex; align-items: center; gap: var(--s-sm);
   transition: color .16s;
 }
 .section > summary .hint {
@@ -263,14 +274,26 @@ main { max-width: var(--max-width); margin: 0 auto; padding: var(--s-xl) var(--s
 }
 /* 開閉キャレット */
 .section > summary::after {
-  content: ""; position: absolute; right: 6px; top: 50%;
+  content: ""; position: absolute; right: 18px; top: 50%;
   width: 8px; height: 8px; margin-top: -6px;
   border-right: 1.6px solid var(--ink-muted); border-bottom: 1.6px solid var(--ink-muted);
   transform: rotate(45deg); transition: transform .2s ease, border-color .16s;
 }
 .section[open] > summary::after { transform: rotate(-135deg); margin-top: -2px; }
 .section > summary:hover::after { border-color: var(--accent); }
-.sec-body { padding: 0 0 var(--s-xl); }
+.sec-body { padding: 18px; }
+
+/* パネルの枠と二重にならないよう、単独で置かれたカードは枠と余白を外す */
+.sec-body > .card { border: 0; border-radius: 0; padding: 0; background: transparent; }
+
+/* KPI は枠なしのセルにして縦罫だけで区切る。箱を減らし、視線を数字そのものへ */
+.sec-body .grid.kpi { gap: 0; }
+.sec-body .grid.kpi > .card {
+  border: 0; border-left: 1px solid var(--border); border-radius: 0;
+  padding: 2px 20px; background: transparent;
+}
+.sec-body .grid.kpi > .card:first-child { border-left: 0; padding-left: 2px; }
+.sec-body .grid.kpi > .card:hover { transform: none; }
 .section .tag {
   font-family: var(--font-jp); font-size: 10px; font-weight: 700; letter-spacing: .06em;
   color: var(--accent); background: var(--notice-bg);
@@ -285,7 +308,11 @@ main { max-width: var(--max-width); margin: 0 auto; padding: var(--s-xl) var(--s
 /* ── カード ── */
 .card {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r-lg); padding: var(--s-lg) 18px;
+  border-radius: var(--r-md); padding: var(--s-md) var(--s-lg);
+}
+/* カードの小見出しは「ラベル」として静かに置く。見出しの役はセクション側が担う */
+.card h3 {
+  font-size: 12.5px; font-weight: 700; letter-spacing: .04em; color: var(--ink-2);
 }
 .grid { display: grid; gap: var(--s-md); }
 /* グリッドの子は既定の min-width:auto だと中身の実寸まで広がってしまい、
@@ -451,15 +478,24 @@ main > footer p { margin: 0; }
   .seg button { padding: 5px 11px; }
 
   main { padding: var(--s-md) var(--s-lg) 56px; }
+  .section { margin-bottom: var(--s-md); border-radius: var(--r-md); }
   .section > summary {
     grid-template-columns: auto minmax(0, 1fr);
     column-gap: 10px; row-gap: 2px;
-    padding: var(--s-md) 28px var(--s-md) 0;
+    padding: 12px 32px 12px 14px;
   }
+  /* 2行になるので、キャレットは中央ではなく見出しの行に合わせる */
+  .section > summary::after { right: 14px; top: 20px; margin-top: 0; }
+  .section[open] > summary::after { top: 18px; margin-top: 0; }
   .section > summary .sec-ic { grid-area: 1 / 1; }
-  .section > summary h2     { grid-area: 1 / 2; font-size: 14.5px; }
+  .section > summary h2     { grid-area: 1 / 2; font-size: 15.5px; }
   .section > summary .hint  { grid-area: 2 / 2; font-size: 11.5px; line-height: 1.65; }
-  .sec-body { padding-bottom: var(--s-lg); }
+  .sec-body { padding: 14px; }
+  /* 2 列に折り返すと縦罫の位置が合わなくなるので、スマホではカードに戻す */
+  .sec-body .grid.kpi { gap: var(--s-sm); }
+  .sec-body .grid.kpi > .card {
+    border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--s-md) 14px;
+  }
 
   .grid { gap: var(--s-sm); }
   .grid.kpi { grid-template-columns: repeat(auto-fit, minmax(142px, 1fr)); }
