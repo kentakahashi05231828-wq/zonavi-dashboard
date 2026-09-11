@@ -1912,9 +1912,10 @@ function setNavOpen(on) {
   const layout = $(".layout");
   layout.classList.toggle("nav-open", on);
   $("#nav-backdrop").hidden = !on;
-  $("#nav-toggle").setAttribute("aria-expanded", String(on));
-  $("#nav-toggle").setAttribute("aria-label", on ? "メニューを閉じる" : "メニューを開く");
-  $("#nav-toggle-ic").setAttribute("href", on ? "#ic-close" : "#ic-menu");
+  const tg = $("#nav-toggle");
+  tg.setAttribute("aria-expanded", String(on));
+  tg.setAttribute("aria-pressed", String(on));
+  tg.setAttribute("aria-label", on ? "項目の一覧を閉じる" : "表示する項目を選ぶ");
   if (!matchMedia("(max-width: 900px)").matches) {
     try { localStorage.setItem(NAV_OPEN_KEY, on ? "1" : "0"); } catch { /* 同上 */ }
   }
@@ -2000,11 +2001,12 @@ function initSections() {
   const secs = $$("details.section");
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(SECTION_STATE_KEY) || "null"); } catch { /* 壊れていたら既定に戻す */ }
-  const narrow = matchMedia("(max-width: 720px)").matches;
 
-  secs.forEach((sec, i) => {
+  secs.forEach(sec => {
     if (saved && sec.id in saved) sec.open = !!saved[sec.id];
-    else if (narrow) sec.open = i < 2;      // スマホの初期状態はサマリーとユーザー数だけ
+    // 初期状態は「概況」だけ開く。14項目を全部開くと、結局どこを見ればいいか分からなくなる。
+    // 残りは畳んだ見出しが目次として並ぶので、そこから辿る
+    else sec.open = sec.dataset.group === "overview";
     sec.addEventListener("toggle", () => {
       persistSections(secs);
       if (sec.open) renderers[sec.dataset.render]?.();

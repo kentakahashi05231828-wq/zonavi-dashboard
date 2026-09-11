@@ -555,7 +555,13 @@ main > footer p { margin: 0; }
   .btn .lb { display: none; }
   .btn { padding: 8px 11px; }
   .filterbar { padding: var(--s-sm) var(--s-lg); gap: 6px; }
-  .filterbar .filters { width: 100%; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
+  /* ハンバーガーと期間フィルタを同じ行に収め、日付は下の行へ */
+  .filterbar .nav-toggle { order: 0; }
+  .filterbar .filters {
+    order: 1; flex: 1 1 auto; width: auto; min-width: 0;
+    overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px;
+  }
+  .filterbar .meta { order: 2; flex: 1 1 100%; }
   .filterbar .filters::-webkit-scrollbar { display: none; }
   .filterbar .meta { margin-left: 0; font-size: 11px; gap: var(--s-sm); }
   .seg button { padding: 5px 11px; }
@@ -645,4 +651,13 @@ main > footer p { margin: 0; }
 /* タップ端末ではツールチップを完全に出さない（JS 側でも止めているが念のため） */
 @media (hover: none), (pointer: coarse) {
   #tip { display: none !important; }
+}
+
+/* 項目メニューの開閉。分類の切り替えは「見る対象を絞る」操作なので、
+   期間やデータソースと同じ絞り込みバーに置く。ヘッダーはロゴと操作だけにする */
+.filterbar .nav-toggle { flex: none; }
+.filterbar .nav-toggle[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--tab-home) 13%, transparent);
+  border-color: color-mix(in srgb, var(--tab-home) 34%, transparent);
+  color: var(--seq-6);
 }

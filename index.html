@@ -70,9 +70,6 @@
   <!-- 本体 -->
   <div id="app" hidden>
     <header class="topbar">
-      <button class="btn icon-only nav-toggle" id="nav-toggle" aria-label="メニューを開く" aria-expanded="false">
-        <svg class="ic" aria-hidden="true"><use id="nav-toggle-ic" href="#ic-menu"/></svg>
-      </button>
       <div class="brand">
         <img class="mark" src="./assets/zonavi-mark.svg" alt="" width="26" height="30">
         <svg class="wordmark" viewBox="0 0 1138.06 231.42" role="img" aria-label="ZONAVI"><use href="#zonavi-wordmark"/></svg>
@@ -91,6 +88,10 @@
 
     <!-- 絞り込み。データ可視化の作法にならい、グラフの上に1行でまとめる -->
     <div class="filterbar">
+      <button class="btn nav-toggle" id="nav-toggle" aria-expanded="false" aria-pressed="false"
+              aria-controls="sidenav" aria-label="表示する項目を選ぶ">
+        <svg class="ic" aria-hidden="true"><use href="#ic-menu"/></svg><span class="lb">項目</span>
+      </button>
       <div class="filters">
         <div class="seg" id="range-seg" role="group" aria-label="表示期間">
           <button data-days="7">7日</button>
