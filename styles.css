@@ -61,6 +61,15 @@
   --crit-bg:   #FBEBE9;
   --notice-bg: #F1F4F7;
 
+  /* セクションの分類ごとの色。左のメニューと見出しで対応させ、
+     いま何の話を見ているかを色でも分かるようにする。
+     -t は文字に使う濃い段（白地で 4.9:1 以上）、無印はアイコンや面に使う段 */
+  --g-overview: #6192DF;  --g-overview-t: #0A4FBF;
+  --g-usage:    #3BA385;  --g-usage-t:    #1F7A62;
+  --g-config:   #8E55CE;  --g-config-t:   #6B3BA8;
+  --g-voice:    #CB8621;  --g-voice-t:    #8F5E0F;
+  --g-summary:  #294056;  --g-summary-t:  #294056;
+
   --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-pill: 999px;
 
   /* DS.Spacing */
@@ -105,6 +114,13 @@
     --critical:  #F0806F;
     --crit-bg:   rgba(58, 33, 30, .56);
     --notice-bg: #22262B;
+
+    --g-overview: #82ACEC;  --g-overview-t: #97BFFE;
+    --g-usage:    #42A98B;  --g-usage-t:    #5FC5A4;
+    --g-config:   #B48AE0;  --g-config-t:   #B48AE0;
+    --g-voice:    #E0A340;  --g-voice-t:    #E0A340;
+    --g-summary:  #7FA6C8;  --g-summary-t:  #9DBEDA;
+
   }
 }
 :root[data-theme="dark"] {
@@ -135,6 +151,13 @@
   --critical:  #F0806F;
   --crit-bg:   rgba(58, 33, 30, .56);
   --notice-bg: #22262B;
+
+  --g-overview: #82ACEC;  --g-overview-t: #97BFFE;
+  --g-usage:    #42A98B;  --g-usage-t:    #5FC5A4;
+  --g-config:   #B48AE0;  --g-config-t:   #B48AE0;
+  --g-voice:    #E0A340;  --g-voice-t:    #E0A340;
+  --g-summary:  #7FA6C8;  --g-summary-t:  #9DBEDA;
+
 }
 
 /* ── 土台 ── */
@@ -279,15 +302,19 @@ main { padding: var(--s-xl) var(--s-xl) 72px; min-width: 0; }
 .nav-item .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-item .n { font-size: 12px; color: var(--ink-muted); }
 .nav-head { font-weight: 700; color: var(--ink); }
+.nav-head .ic { color: var(--g, var(--ink-2)); }
 .nav-group { margin-top: 8px; }
 .nav-subs { display: grid; gap: 1px; margin-top: 1px; }
 .nav-sub { padding: 6px 10px 6px 37px; font-size: 13px; }
 /* 選択中の分類。バスの青で示す */
-.nav-all[aria-pressed="true"], .nav-head[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--tab-home) 13%, transparent);
-  color: var(--seq-6);
+.nav-all[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--tab-home) 13%, transparent); color: var(--seq-6);
 }
-.nav-all[aria-pressed="true"] .n, .nav-head[aria-pressed="true"] .n { color: var(--seq-6); }
+.nav-head[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--g) 14%, transparent); color: var(--g-t);
+}
+.nav-all[aria-pressed="true"] .n { color: var(--seq-6); }
+.nav-head[aria-pressed="true"] .n { color: var(--g-t); }
 .nav-backdrop { display: none; }
 
 /* ── アンケートの自由記述 ── */
@@ -347,7 +374,7 @@ main { padding: var(--s-xl) var(--s-xl) 72px; min-width: 0; }
 }
 .section > summary {
   list-style: none; cursor: pointer; position: relative;
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--g, var(--ink)) 6%, var(--surface-2));
   border-bottom: 1px solid transparent;
   /* アイコン｜見出し｜補足 の3列。折り返してもアイコンが上に外れない */
   display: grid; grid-template-columns: auto auto minmax(0, 1fr);
@@ -356,7 +383,7 @@ main { padding: var(--s-xl) var(--s-xl) 72px; min-width: 0; }
 }
 .section[open] > summary { border-bottom-color: var(--border); }
 .section > summary::-webkit-details-marker { display: none; }
-.section > summary:hover h2 { color: var(--accent); }
+.section > summary:hover h2 { color: var(--g-t, var(--accent)); }
 .section > summary h2 {
   /* カード内の小見出し（12.5px）と差をつけて、階層が一目で分かるようにする */
   font-size: 17px; display: inline-flex; align-items: center; gap: var(--s-sm);
@@ -373,7 +400,7 @@ main { padding: var(--s-xl) var(--s-xl) 72px; min-width: 0; }
   transform: rotate(45deg); transition: transform .2s ease, border-color .16s;
 }
 .section[open] > summary::after { transform: rotate(-135deg); margin-top: -2px; }
-.section > summary:hover::after { border-color: var(--accent); }
+.section > summary:hover::after { border-color: var(--g-t, var(--accent)); }
 .sec-body { padding: 18px; }
 
 /* パネルの枠と二重にならないよう、単独で置かれたカードは枠と余白を外す */
@@ -389,7 +416,7 @@ main { padding: var(--s-xl) var(--s-xl) 72px; min-width: 0; }
 .sec-body .grid.kpi > .card:hover { transform: none; }
 .section .tag {
   font-family: var(--font-jp); font-size: 10px; font-weight: 700; letter-spacing: .06em;
-  color: var(--accent); background: var(--notice-bg);
+  color: var(--g-t, var(--accent)); background: var(--surface);
   border: 1px solid var(--border); border-radius: var(--r-pill);
   padding: 2px 8px; line-height: 1.6;
 }
@@ -420,7 +447,7 @@ main { padding: var(--s-xl) var(--s-xl) 72px; min-width: 0; }
 /* 先頭＝そのセクションで最初に見る数字。ここだけバスの青と大きめの文字にして、
    視線の入口をひとつに絞る。2番目以降を黒のまま揃えるのは、
    複数を色分けすると「どれが1番か」が読めなくなるため */
-.sec-body .grid.kpi > .card:nth-child(1) .value { color: var(--seq-6); font-size: 39px; }
+.sec-body .grid.kpi > .card:nth-child(1) .value { color: var(--g-t, var(--seq-6)); font-size: 39px; }
 .sec-body .grid.kpi > .card:nth-child(1) .label { color: var(--ink); font-weight: 700; }
 .kpi-tile:hover { transform: translateY(-3px); border-color: var(--border-hi); }
 .kpi-tile .label {
@@ -598,8 +625,8 @@ main > footer p { margin: 0; }
   }
   /* スマホはカード表示なので、主役だけ薄い青地にして一目で分かるようにする */
   .sec-body .grid.kpi > .card:nth-child(1) {
-    background: color-mix(in srgb, var(--tab-home) 8%, transparent);
-    border-color: color-mix(in srgb, var(--tab-home) 32%, transparent);
+    background: color-mix(in srgb, var(--g, var(--tab-home)) 9%, transparent);
+    border-color: color-mix(in srgb, var(--g, var(--tab-home)) 34%, transparent);
   }
 
   .grid { gap: var(--s-sm); }
@@ -641,8 +668,15 @@ main > footer p { margin: 0; }
 .ic { width: 16px; height: 16px; fill: currentColor; flex: none; }
 .sec-ic {
   width: 20px; height: 20px; fill: currentColor; flex: none;
-  color: var(--accent-sub); align-self: center; transition: color .16s;
+  color: var(--g, var(--accent-sub)); align-self: center; transition: color .16s;
 }
+
+/* 分類ごとの色を、そのセクションと左メニューの項目に流し込む */
+.section[data-group="overview"], .nav-group[data-g="overview"], .nav-item[data-group="overview"] { --g: var(--g-overview); --g-t: var(--g-overview-t); }
+.section[data-group="usage"],    .nav-group[data-g="usage"],    .nav-item[data-group="usage"]    { --g: var(--g-usage);    --g-t: var(--g-usage-t); }
+.section[data-group="config"],   .nav-group[data-g="config"],   .nav-item[data-group="config"]   { --g: var(--g-config);   --g-t: var(--g-config-t); }
+.section[data-group="voice"],    .nav-group[data-g="voice"],    .nav-item[data-group="voice"]    { --g: var(--g-voice);    --g-t: var(--g-voice-t); }
+.section[data-group="summary"],  .nav-group[data-g="summary"],  .nav-item[data-group="summary"]  { --g: var(--g-summary);  --g-t: var(--g-summary-t); }
 .section > summary:hover .sec-ic { color: var(--accent); }
 
 /* マークとワードマークは同じ高さに揃える */

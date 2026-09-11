@@ -285,20 +285,22 @@ export const SURVEY_FEATURE_MAP = {
 };
 
 /** 内訳カードの表示設定 */
+/* tone は「何についての軸か」で色を分けるため。
+   端末＝青／ソフトウェア＝紫／利用者の設定＝橙／期間＝緑 */
 export const BREAKDOWNS = [
-  { key: "model",    label: "機種",                 format: deviceName, limit: 10, since: true },
-  { key: "versions", label: "アプリバージョン",      format: v => v.replace(/_/g, ".") },
-  { key: "osFull",   label: "iOS バージョン（詳細）", format: v => `iOS ${v.replace(/_/g, ".")}`, since: true },
-  { key: "os",       label: "iOS メジャーバージョン", format: v => `iOS ${v}` },
-  { key: "device",   label: "端末種別",             format: v => v },
-  { key: "display",  label: "画面サイズ",           format: v => DISPLAY_LABELS[v] ?? v, since: true,
+  { key: "model",    label: "機種",                 format: deviceName, limit: 10, since: true, tone: "home" },
+  { key: "versions", label: "アプリバージョン",      format: v => v.replace(/_/g, "."), tone: "settings" },
+  { key: "osFull",   label: "iOS バージョン（詳細）", format: v => `iOS ${v.replace(/_/g, ".")}`, since: true, tone: "settings" },
+  { key: "os",       label: "iOS メジャーバージョン", format: v => `iOS ${v}`, tone: "settings" },
+  { key: "device",   label: "端末種別",             format: v => v, tone: "home" },
+  { key: "display",  label: "画面サイズ",           format: v => DISPLAY_LABELS[v] ?? v, since: true, tone: "home",
     order: ["small", "standard", "large", "tablet"] },
-  { key: "notif",    label: "通知の許可状況",        format: v => NOTIF_LABELS[v] ?? v, since: true,
+  { key: "notif",    label: "通知の許可状況",        format: v => NOTIF_LABELS[v] ?? v, since: true, tone: "links",
     order: ["granted", "provisional", "denied", "ephemeral", "notDetermined"] },
-  { key: "lang",     label: "表示言語",             format: v => ({ ja: "日本語", en: "English" }[v] ?? v) },
-  { key: "theme",    label: "表示モード",           format: v => ({ light: "ライト", dark: "ダーク" }[v] ?? v) },
+  { key: "lang",     label: "表示言語",             format: v => ({ ja: "日本語", en: "English" }[v] ?? v), tone: "links" },
+  { key: "theme",    label: "表示モード",           format: v => ({ light: "ライト", dark: "ダーク" }[v] ?? v), tone: "links" },
   {
-    key: "tenure", label: "インストールからの経過", format: v =>
+    key: "tenure", label: "インストールからの経過", tone: "schedule", format: v =>
       ({ d0: "当日", d1_6: "1〜6日", d7_29: "7〜29日", d30plus: "30日以上" }[v] ?? v),
     order: ["d0", "d1_6", "d7_29", "d30plus"],
   },

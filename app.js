@@ -798,6 +798,8 @@ function renderWidgets() {
       el("div", { class: "delta flat" }, el("span", { class: "jp" }, pct(none, measured)))),
   ));
 
+  // 置き場所で色を分ける。ホーム画面とロック画面では使われ方が違うため
+  const placeTone = fam => (String(fam).startsWith("accessory") ? tabColor("links") : tabColor("home"));
   const listCard = (title, rows, note) => {
     const card = el("div", { class: "card" },
       el("h3", { style: "font-size:13px;margin-bottom:12px" }, title));
@@ -808,7 +810,8 @@ function renderWidgets() {
       const row = el("div", { class: "rank-row", style: "grid-template-columns:minmax(120px,1fr) 1fr auto" },
         el("div", { class: "name", title: r.key ?? "" }, el("span", { class: "txt" }, r.label)),
         el("div", { class: "track" },
-          el("div", { class: "fill", style: `width:${(r.n / max) * 100}%;background:${tabColor("home")}` })),
+          el("div", { class: "fill",
+            style: `width:${(r.n / max) * 100}%;background:${placeTone(r.family ?? r.key)}` })),
         el("div", { class: "val num" }, fmt(r.n),
           el("span", { class: "share" }, pct(r.n, installed))));
       row.addEventListener("pointerenter", ev => showTip(ev, r.label,
@@ -1118,11 +1121,12 @@ function renderBreakdowns() {
     } else {
       const max = Math.max(...rows.map(r => r.v));
       const rank = el("div", { class: "rank" });
+      const tone = tabColor(b.tone ?? "home");
       for (const r of rows.slice(0, b.limit ?? 6)) {
         rank.append(el("div", { class: "rank-row", style: "grid-template-columns:minmax(88px,120px) 1fr auto" },
           el("div", { class: "name" }, el("span", { class: "txt" }, b.format(r.k))),
           el("div", { class: "track" },
-            el("div", { class: "fill", style: `width:${(r.v / max) * 100}%;background:${tabColor("home")}` })),
+            el("div", { class: "fill", style: `width:${(r.v / max) * 100}%;background:${tone}` })),
           el("div", { class: "val num" }, fmt(r.v), el("span", { class: "share" }, pct(r.v, total)))));
       }
       card.append(rank);
@@ -1942,7 +1946,7 @@ function initNav() {
     ...SECTION_GROUPS.map(g => {
       const mine = secs.filter(sec => sec.dataset.group === g.key);
       if (!mine.length) return null;
-      return el("div", { class: "nav-group" },
+      return el("div", { class: "nav-group", "data-g": g.key },
         item("nav-head", { "data-group": g.key },
           useIcon(g.icon), el("span", { class: "t" }, g.label),
           el("span", { class: "n num" }, String(mine.length))),
