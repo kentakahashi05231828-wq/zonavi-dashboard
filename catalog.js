@@ -259,6 +259,31 @@ export const lookupSlot = key =>
 
 export const APPBAR_COUNT_LABELS = { c1: "1項目", c2: "2項目", c3: "3項目", c4: "4項目（すべて）" };
 
+/**
+ * アプリ内「ご意見・ご要望」フォームの回答。
+ * RTDB の feedback ノードに 1 回答 1 レコードで入る。
+ * 選択肢はアプリ側 FeedbackView の日本語ラベルがそのまま値になっているので、
+ * ここでは表示順と色だけを決める。未知の値（「その他：〜」など）もそのまま出す。
+ */
+export const SURVEY_FIELDS = {
+  grade:        { label: "学年・立場",       order: ["1年生", "2年生", "3年生", "4年生", "大学院生", "職員"] },
+  discovery:    { label: "知ったきっかけ",   order: ["友人・知人から", "SNS", "ポスター", "授業・ガイダンス"] },
+  mainFeatures: { label: "よく使う機能",     order: ["バス時刻表", "学食メニュー", "時間割", "リンク集", "ZONAVI AI"], multi: true },
+  usageScenes:  { label: "使う場面",         order: ["登校時（行き）", "授業の合間", "昼休み", "下校時（帰り）"], multi: true },
+};
+
+/**
+ * アンケートの「よく使う機能」と、実測の機能利用者数の対応。
+ * 自己申告（言っていること）と実測（やっていること）を並べるために使う。
+ * ZONAVI AI は廃止済みなので対応先がない。
+ */
+export const SURVEY_FEATURE_MAP = {
+  "バス時刻表":   "bus_time",
+  "学食メニュー": "cafeteria",
+  "時間割":       "timetable",
+  "リンク集":     "ext_links",
+};
+
 /** 内訳カードの表示設定 */
 export const BREAKDOWNS = [
   { key: "model",    label: "機種",                 format: deviceName, limit: 10, since: true },

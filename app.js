@@ -3,6 +3,7 @@ import {
   TABS, APP_GROUP, EVENTS, BREAKDOWNS, DOW_LABELS, lookupEvent, tabOf,
   FEATURES, lookupFeature, WIDGETS, lookupWidget,
   APPBAR_MODES, APPBAR_SLOTS, lookupSlot, APPBAR_COUNT_LABELS,
+  SURVEY_FIELDS, SURVEY_FEATURE_MAP,
   WIDGET_FAMILY_LABELS, WIDGET_FAMILY_ORDER, WIDGET_COUNT_LABELS,
 } from "./catalog.js";
 import { STUDENT_COUNT, calendarEntries } from "./config.js";
@@ -107,6 +108,7 @@ const state = {
   weekly: {},               // { "2026-W37": { activeUsers, newUsers } } 実人数
   monthly: {},              // { "2026-09":   { activeUsers, newUsers } } 実人数
   totals: {},
+  feedback: [],             // アプリ内「ご意見・ご要望」の回答
   db: null,
 };
 
@@ -191,6 +193,10 @@ async function loadData() {
     get(ref(state.db, `${state.source}/weekly`)),
     get(ref(state.db, `${state.source}/monthly`)),
   ]);
+  // アンケートは本番/開発で分かれない単一ノード
+  const fbSnap = await get(ref(state.db, "feedback"));
+  state.feedback = normalizeFeedback(fbSnap.val());
+
   state.daily   = dailySnap.val() || {};
   state.totals  = totalSnap.val() || {};
   state.weekly  = weekSnap.val() || {};
@@ -842,6 +848,157 @@ function renderWidgets() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// アンケート（アプリ内「ご意見・ご要望」）
+//
+// 行動ログでは分からない「なぜ使うか」「どこで知ったか」「学年」が取れる唯一の場所。
+// 自己申告なので実測とはずれる。そのズレ自体が読みどころ。
+// ─────────────────────────────────────────────────────────────
+
+/** RTDB の生データを配列に均す。旧形式の mainFeature（単数）も拾う */
+function normalizeFeedback(raw) {
+  return Object.entries(raw || {}).map(([id, v]) => {
+    const multi = k => {
+      const x = v?.[k];
+      return Array.isArray(x) ? x : (x == null || x === "" ? [] : [x]);
+    };
+    return {
+      id,
+      at: Number(v?.timestamp) || 0,
+      grade: v?.grade ?? "",
+      discovery: v?.discovery ?? "",
+      mainFeatures: [...multi("mainFeatures"), ...multi("mainFeature")],
+      usageScenes: multi("usageScenes"),
+      improvements: String(v?.improvements ?? "").trim(),
+      featureRequests: String(v?.featureRequests ?? "").trim(),
+    };
+  }).sort((a, b) => b.at - a.at);
+}
+
+const surveyDay = ms => (ms ? dayKey(new Date(ms)) : "—");
+
+function renderSurvey() {
+  const host = $("#survey"); host.innerHTML = "";
+  const rows = state.feedback;
+  if (!rows.length) {
+    host.append(el("div", { class: "empty" }, "まだ回答がありません"));
+    return;
+  }
+
+  const installs = Number(state.totals?.summary?.installs) || 0;
+  const latest = rows[0]?.at, oldest = rows.at(-1)?.at;
+  const withText = rows.filter(r => r.improvements || r.featureRequests).length;
+
+  const tile = (label, value, sub, note) => el("div", { class: "card kpi-tile" },
+    el("div", { class: "label", title: note ?? "" }, label),
+    el("div", { class: "value num" }, value),
+    el("div", { class: "delta flat" }, el("span", { class: "jp" }, sub)));
+
+  host.append(el("div", { class: "grid kpi" },
+    tile("回答数", fmt(rows.length), `${surveyDay(oldest)} 〜 ${surveyDay(latest)}`,
+         "アプリ内のご意見・ご要望フォームに届いた回答の総数"),
+    tile("回答率", installs > 0 ? pct(rows.length, installs) : "—",
+         installs > 0 ? `累計 ${fmt(installs)} 台に対して` : "累計ダウンロードが未取得",
+         "回答数 ÷ 初回起動した端末の累計"),
+    tile("自由記述あり", fmt(withText), `全体の ${pct(withText, rows.length)}`,
+         "改善点または要望が書かれていた回答の数"),
+  ));
+
+  // 選択式の集計
+  const counts = (field, multi) => {
+    const c = new Map();
+    for (const r of rows) {
+      const vals = multi ? r[field] : (r[field] ? [r[field]] : []);
+      for (const v of vals) c.set(v, (c.get(v) || 0) + 1);
+    }
+    return c;
+  };
+  const sortByOrder = (list, order) => list.sort((a, b) => {
+    const ia = order.indexOf(a.k), ib = order.indexOf(b.k);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return b.n - a.n;
+  });
+
+  const measured = sumGroup(rangeDaysList(), "featureUsers");
+  const active = sumSummary(rangeDaysList(), "activeUsers");
+  const hasMeasured = Object.keys(measured).length > 0 && active > 0;
+
+  const fieldCard = (key, def) => {
+    const c = counts(key, def.multi);
+    const list = sortByOrder([...c].map(([k, n]) => ({ k, n })), def.order);
+    const card = el("div", { class: "card" },
+      el("h3", {}, def.label),
+      el("p", { class: "hint", style: "margin:0 0 12px" },
+        def.multi ? `複数選択。回答 ${fmt(rows.length)} 件に対する割合。` : `回答 ${fmt(rows.length)} 件の内訳。`));
+    if (!list.length) { card.append(el("div", { class: "empty" }, "回答なし")); return card; }
+    const max = Math.max(...list.map(r => r.n));
+    const rank = el("div", { class: "rank" });
+    for (const r of list) {
+      const tone = key === "grade" ? tabColor("schedule")
+                 : key === "discovery" ? tabColor("links") : tabColor("home");
+      const row = el("div", { class: "rank-row", style: "grid-template-columns:minmax(110px,1fr) 1fr auto" },
+        el("div", { class: "name" }, el("span", { class: "txt" }, r.k)),
+        el("div", { class: "track" },
+          el("div", { class: "fill", style: `width:${(r.n / max) * 100}%;background:${tone}` })),
+        el("div", { class: "val num" }, fmt(r.n), el("span", { class: "share" }, pct(r.n, rows.length))));
+      rank.append(row);
+    }
+    card.append(rank);
+
+    // 自己申告と実測の突き合わせ。ここのズレが一番の読みどころ
+    if (key === "mainFeatures" && hasMeasured) {
+      card.append(el("p", { class: "hint", style: "margin:14px 0 8px" },
+        "アンケートの自己申告と、実測の利用者数（アクティブ端末に対する割合）の比較。"));
+      const cmp = el("div", { class: "rank" });
+      for (const r of list) {
+        const fk = SURVEY_FEATURE_MAP[r.k];
+        if (!fk) continue;
+        const said = r.n / rows.length;
+        const did = (Number(measured[fk]) || 0) / active;
+        cmp.append(el("div", { class: "rank-row", style: "grid-template-columns:minmax(110px,1fr) 1fr auto" },
+          el("div", { class: "name" }, el("span", { class: "txt" }, r.k)),
+          el("div", { class: "track", style: "height:22px" },
+            el("div", { class: "fill", style: `width:${Math.min(100, said * 100)}%;background:${tabColor("home")};height:10px` }),
+            el("div", { class: "fill", style: `width:${Math.min(100, did * 100)}%;background:${tabColor("schedule")};height:10px;margin-top:2px` })),
+          el("div", { class: "val num" }, `${(said * 100).toFixed(0)}%`,
+            el("span", { class: "share" }, `実測 ${(did * 100).toFixed(0)}%`))));
+      }
+      card.append(cmp);
+      card.append(el("div", { class: "legend", style: "margin-top:10px" },
+        el("span", { class: "item" }, el("span", { class: "swatch", style: `background:${tabColor("home")}` }), "アンケートの自己申告"),
+        el("span", { class: "item" }, el("span", { class: "swatch", style: `background:${tabColor("schedule")}` }), "実測の利用者数")));
+    } else if (key === "mainFeatures") {
+      card.append(el("p", { class: "hint", style: "margin:14px 0 0" },
+        "アプリのアップデート後は、ここに実測の利用者数を並べて「言っていること」と「やっていること」のズレを確認できます。"));
+    }
+    return card;
+  };
+
+  host.append(el("div", { class: "grid two", style: "margin-top:14px" },
+    ...Object.entries(SURVEY_FIELDS).map(([k, def]) => fieldCard(k, def))));
+
+  // 自由記述
+  const texts = rows.filter(r => r.improvements || r.featureRequests);
+  host.append(el("h3", { class: "report-h" }, `自由記述（${fmt(texts.length)} 件）`));
+  if (!texts.length) {
+    host.append(el("div", { class: "empty" }, "自由記述の回答はまだありません"));
+  } else {
+    const list = el("div", { class: "voices" });
+    for (const r of texts) {
+      const item = el("div", { class: "voice" },
+        el("div", { class: "meta" },
+          el("span", { class: "num" }, surveyDay(r.at)),
+          r.grade ? el("span", { class: "tag" }, r.grade) : null));
+      if (r.improvements) item.append(el("p", {}, el("span", { class: "kind" }, "改善点"), r.improvements));
+      if (r.featureRequests) item.append(el("p", {}, el("span", { class: "kind" }, "要望"), r.featureRequests));
+      list.append(item);
+    }
+    host.append(list);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // アプリバーの表示設定
 //
 // ホーム上部のバーに何を出すか。既定は「切り替え・4項目すべて」で、
@@ -1434,6 +1591,49 @@ function buildReport(win) {
     }
   }
 
+  // アンケート。行動ログでは分からない「なぜ」「どこで知ったか」が入っている
+  const fb = state.feedback ?? [];
+  if (fb.length >= 5) {
+    const tally = (field, multi) => {
+      const c = new Map();
+      for (const r of fb) for (const v of (multi ? r[field] : [r[field]]).filter(Boolean)) c.set(v, (c.get(v) || 0) + 1);
+      return [...c].sort((a, b) => b[1] - a[1]);
+    };
+    const disco = tally("discovery", false);
+    if (disco.length) {
+      add("info", `アンケートでは「${disco[0][0]}」で知った人が最多です（${pct(disco[0][1], fb.length)}）`,
+          `回答 ${fmt(fb.length)} 件の内訳。どこで広がったかは行動ログに残らないので、ここでしか分かりません。`,
+          "一番効いている経路に絞って告知する。学内専用アプリは口コミの効きが大きい");
+    }
+    const grade = tally("grade", false);
+    if (grade.length) {
+      add("info", `回答者の学年で最多は「${grade[0][0]}」（${pct(grade[0][1], fb.length)}）`,
+          "学年は行動ログでは取っていないので、アンケートが唯一の手がかりです。"
+          + "卒業と入学で利用者が入れ替わる時期の見通しに使えます。");
+    }
+    const said = tally("mainFeatures", true);
+    const measuredF = sumGroup(cur.days, "featureUsers");
+    if (said.length && Object.keys(measuredF).length && cur.activeUsers > 0) {
+      const gaps = said.map(([k, n]) => {
+        const fk = SURVEY_FEATURE_MAP[k];
+        if (!fk) return null;
+        return { k, said: n / fb.length, did: (Number(measuredF[fk]) || 0) / cur.activeUsers };
+      }).filter(Boolean).sort((a, b) => (b.said - b.did) - (a.said - a.did));
+      const g = gaps[0];
+      if (g && g.said - g.did > 0.2) {
+        add("warn", `「${g.k}」は申告 ${pctText(g.said)} に対して実測 ${pctText(g.did)} です`,
+            "アンケートでは主な用途として挙げられているのに、実際にはそこまで使われていません。"
+            + "思い出して答えた印象と、日々の行動がずれています。",
+            "「あると安心だが普段は使わない」ものなのか、使いたいのに使いにくいのかを確かめる");
+      }
+    }
+    const texts = fb.filter(r => r.improvements || r.featureRequests).length;
+    if (texts > 0) {
+      add("info", `自由記述が ${fmt(texts)} 件届いています`,
+          "次に何を作るかの手がかりは、たいていここにあります。アンケートのセクションで全文を読めます。");
+    }
+  }
+
   // 機能の利用率（人数ベース）
   if (sumOf(cur.featureUsers) > 0 && cur.activeUsers > 0) {
     const rows = FEATURES.map(f => ({ ...f, n: Number(cur.featureUsers[f.key]) || 0 }));
@@ -1622,7 +1822,8 @@ function reportAsText() {
 // ─────────────────────────────────────────────────────────────
 function render() {
   renderKPIs(); renderUsers(); renderTrend(); renderTabs(); renderFeatures(); renderFeatureUsers();
-  renderWidgets(); renderAppBar(); renderHours(); renderWeekdays(); renderBreakdowns(); renderTable();
+  renderWidgets(); renderAppBar(); renderHours(); renderWeekdays(); renderBreakdowns();
+  renderSurvey(); renderTable();
   renderReport();   // まとめなので最後に置く
   const t = state.updatedAt;
   $("#updated").textContent = t
@@ -1665,6 +1866,120 @@ function showLoadError(e) {
       el("code", { style: "user-select:all" }, state.uid ?? "—"),
       el("button", { class: "btn", onclick: () => navigator.clipboard?.writeText(state.uid ?? "") }, "UID をコピー")) : null,
   );
+}
+
+// ─────────────────────────────────────────────────────────────
+// セクションの分類とナビゲーション
+//
+// 項目が13個あり、全部並べると探せない。種類ごとに絞り込めるようにする。
+// PC は横の開閉式メニュー、スマホはハンバーガーで引き出す。
+// ─────────────────────────────────────────────────────────────
+const SECTION_GROUPS = [
+  { key: "overview", label: "概況",       icon: "summarize" },
+  { key: "usage",    label: "使われ方",   icon: "touch_app" },
+  { key: "config",   label: "設定と環境", icon: "smartphone" },
+  { key: "voice",    label: "利用者の声", icon: "forum" },
+  { key: "summary",  label: "まとめ",     icon: "auto_awesome" },
+];
+const NAV_GROUP_KEY = "zonavi.dash.group";
+const NAV_OPEN_KEY  = "zonavi.dash.navOpen";
+
+/** そのセクションのグラフを描き直す。隠れている間は幅が測れないため */
+function rerenderSection(sec) {
+  const fn = {
+    renderKPIs, renderUsers, renderTrend, renderTabs, renderFeatures,
+    renderFeatureUsers, renderWidgets, renderAppBar, renderHours, renderWeekdays,
+    renderBreakdowns, renderSurvey, renderTable, renderReport,
+  }[sec.dataset.render];
+  fn?.();
+}
+
+function applyGroup(g) {
+  state.group = g;
+  try { localStorage.setItem(NAV_GROUP_KEY, g); } catch { /* 保存できなくても動く */ }
+  for (const sec of $$("details.section")) {
+    const show = g === "*" || sec.dataset.group === g;
+    const wasHidden = sec.hidden;
+    sec.hidden = !show;
+    if (show && wasHidden && sec.open) rerenderSection(sec);
+  }
+  for (const b of $$("#sidenav-inner [data-group]")) {
+    b.setAttribute("aria-pressed", b.dataset.group === g);
+  }
+}
+
+function setNavOpen(on) {
+  const layout = $(".layout");
+  layout.classList.toggle("nav-open", on);
+  $("#nav-backdrop").hidden = !on;
+  $("#nav-toggle").setAttribute("aria-expanded", String(on));
+  $("#nav-toggle").setAttribute("aria-label", on ? "メニューを閉じる" : "メニューを開く");
+  $("#nav-toggle-ic").setAttribute("href", on ? "#ic-close" : "#ic-menu");
+  if (!matchMedia("(max-width: 900px)").matches) {
+    try { localStorage.setItem(NAV_OPEN_KEY, on ? "1" : "0"); } catch { /* 同上 */ }
+  }
+}
+
+function initNav() {
+  const inner = $("#sidenav-inner");
+  const secs = $$("details.section");
+  const titleOf = sec => sec.querySelector("h2")?.firstChild?.textContent?.trim() ?? sec.id;
+  const narrow = () => matchMedia("(max-width: 900px)").matches;
+
+  const item = (cls, attrs, ...kids) => el("button", { class: `nav-item ${cls}`, type: "button", ...attrs }, ...kids);
+  const icon = name => svgEl("svg", { class: "ic" });
+  const useIcon = (name) => {
+    const svg = svgEl("svg", { class: "ic", "aria-hidden": "true" });
+    svg.append(svgEl("use", { href: `#ic-${name}` }));
+    return svg;
+  };
+
+  inner.replaceChildren(
+    item("nav-all", { "data-group": "*" },
+      useIcon("filter_list"), el("span", { class: "t" }, "すべて表示"),
+      el("span", { class: "n num" }, String(secs.length))),
+    ...SECTION_GROUPS.map(g => {
+      const mine = secs.filter(sec => sec.dataset.group === g.key);
+      if (!mine.length) return null;
+      return el("div", { class: "nav-group" },
+        item("nav-head", { "data-group": g.key },
+          useIcon(g.icon), el("span", { class: "t" }, g.label),
+          el("span", { class: "n num" }, String(mine.length))),
+        el("div", { class: "nav-subs" }, mine.map(sec =>
+          item("nav-sub", { "data-target": sec.id }, el("span", { class: "t" }, titleOf(sec))))));
+    }).filter(Boolean),
+  );
+
+  inner.addEventListener("click", ev => {
+    const btn = ev.target.closest(".nav-item");
+    if (!btn) return;
+    if (btn.dataset.group) {
+      applyGroup(btn.dataset.group);
+    } else if (btn.dataset.target) {
+      const sec = $(`#${btn.dataset.target}`);
+      if (!sec) return;
+      if (sec.hidden) applyGroup(sec.dataset.group);   // 絞り込みで隠れていたら、その分類へ切り替える
+      if (!sec.open) sec.open = true;
+      sec.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    if (narrow()) setNavOpen(false);
+  });
+
+  $("#nav-toggle").addEventListener("click", () =>
+    setNavOpen(!$(".layout").classList.contains("nav-open")));
+  $("#nav-backdrop").addEventListener("click", () => setNavOpen(false));
+  $("#nav-close").addEventListener("click", () => setNavOpen(false));
+  addEventListener("keydown", ev => {
+    if (ev.key === "Escape" && narrow() && $(".layout").classList.contains("nav-open")) setNavOpen(false);
+  });
+
+  let saved = null, savedOpen = null;
+  try {
+    saved = localStorage.getItem(NAV_GROUP_KEY);
+    savedOpen = localStorage.getItem(NAV_OPEN_KEY);
+  } catch { /* 既定に戻す */ }
+  applyGroup(saved ?? "*");
+  setNavOpen(narrow() ? false : savedOpen !== "0");
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1719,6 +2034,7 @@ function syncToggleLabel(secs) {
 // 起動
 // ─────────────────────────────────────────────────────────────
 function wireControls() {
+  initNav();
   initSections();
   $$("#range-seg button").forEach(b => b.addEventListener("click", () => {
     state.rangeDays = Number(b.dataset.days);
@@ -1925,6 +2241,38 @@ function demoAppBar(users, rnd) {
   };
 }
 
+/** デモ用のアンケート回答。実データと同じ形にそろえる */
+function demoFeedback(rnd) {
+  const grades = ["1年生", "1年生", "1年生", "2年生", "2年生", "3年生", "4年生", "職員"];
+  const discos = ["友人・知人から", "友人・知人から", "SNS", "SNS", "その他：ポスター"];
+  const feats  = ["バス時刻表", "学食メニュー", "時間割", "リンク集"];
+  const scenes = ["登校時（行き）", "授業の合間", "昼休み", "下校時（帰り）"];
+  const improvements = [
+    "バスの時刻がたまに古いことがある", "時間割の入力をもう少し楽にしてほしい", "",
+    "", "学食のメニューが出ない日がある", "", "", "文字がもう少し大きいと嬉しいです", "",
+  ];
+  const requests = [
+    "教室の場所が分かると助かります", "", "課題の締切を管理したい", "", "",
+    "図書館の開館時間も見たい", "", "", "",
+  ];
+  const now = Date.now();
+  const out = {};
+  for (let i = 0; i < 24; i++) {
+    const pick = arr => arr[Math.floor(rnd() * arr.length)];
+    const many = arr => arr.filter(() => rnd() < 0.45);
+    out[`demo${i}`] = {
+      timestamp: now - Math.round(rnd() * 92) * 86400000,
+      grade: pick(grades),
+      discovery: pick(discos),
+      mainFeatures: (m => m.length ? m : [pick(feats)])(many(feats)),
+      usageScenes: (m => m.length ? m : [pick(scenes)])(many(scenes)),
+      improvements: pick(improvements),
+      featureRequests: pick(requests),
+    };
+  }
+  return out;
+}
+
 function buildDemoData() {
   let seed = 20260905;
   const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
@@ -2020,6 +2368,8 @@ function buildDemoData() {
     monthly[mo].dau += v.summary.activeUsers;
     monthly[mo].newUsers += v.summary.newUsers;
   }
+  state.feedback = normalizeFeedback(demoFeedback(rnd));
+
   state.weekly = Object.fromEntries(Object.entries(weekly).map(([k, v]) =>
     [k, { activeUsers: Math.round(v.dau / 3.5), newUsers: v.newUsers }]));
   state.monthly = Object.fromEntries(Object.entries(monthly).map(([k, v]) =>
