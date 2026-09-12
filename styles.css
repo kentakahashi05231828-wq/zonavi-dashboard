@@ -77,6 +77,7 @@
 
   --max-width: 1200px;
   --header-h: 60px;
+  --bar-h: 59px;   /* 絞り込みバーの実測高さ。サイドメニューの上端をここに合わせる */
 }
 
 /* ダークは DESIGN_RULES に定義がないため、ネイビーの性格を保ったまま起こした段 */
@@ -287,12 +288,19 @@ code {
 .layout.nav-open { grid-template-columns: 244px minmax(0, 1fr); }
 main { padding: var(--s-xl) var(--s-xl) 72px; min-width: 0; }
 
-.sidenav { overflow: hidden; }
+/* メニューはヘッダーの下に貼り付いたまま、自分の中だけでスクロールする。
+   sticky を中の要素に付けると親の overflow:hidden に閉じ込められて
+   ページと一緒に流れてしまうので、sticky はこの要素自身に付ける */
+.sidenav {
+  position: sticky; top: calc(var(--header-h) + var(--bar-h));
+  align-self: start;
+  height: calc(100dvh - var(--header-h) - var(--bar-h));
+  overflow: hidden;              /* 折りたたみ中に中身がはみ出さないように */
+}
 .sidenav-head { display: none; }
 .sidenav-inner {
-  position: sticky; top: calc(var(--header-h) + 50px);
-  max-height: calc(100dvh - var(--header-h) - 62px); overflow-y: auto;
-  padding: var(--s-xl) var(--s-sm) var(--s-xl) var(--s-xl);
+  height: 100%; overflow-y: auto; overscroll-behavior: contain;
+  padding: var(--s-lg) 10px var(--s-xl) var(--s-xl);
   display: grid; gap: 2px; align-content: start;
 }
 .nav-item {
@@ -345,6 +353,7 @@ main { padding: var(--s-xl) var(--s-xl) 72px; min-width: 0; }
   .layout, .layout.nav-open { grid-template-columns: minmax(0, 1fr); }
   .sidenav {
     position: fixed; z-index: 60; left: 0; top: 0; width: 270px; height: 100dvh;
+    align-self: auto;
     background: var(--surface); border-right: 1px solid var(--border);
     transform: translateX(-100%); transition: transform .22s ease;
     box-shadow: 0 0 40px rgba(0, 0, 0, .18);

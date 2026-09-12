@@ -215,6 +215,27 @@ const prevRangeDaysList = () => {
   return listDays(shiftDays(end, -(state.rangeDays - 1)), end);
 };
 
+/**
+ * 内訳系（機種・バージョン・ウィジェット・アプリバー）は
+ * 「その日アプリを開いた端末」を 1端末1日1カウントで数えたもの。
+ * 期間で足すと日数ぶん膨らんで端末数として読めなくなる
+ * （30日ぶん足すと 819 のような、実際の台数と桁が合わない値になる）。
+ * そこで、データのある最新日のスナップショットを使って実数で出す。
+ */
+function latestDayWithData() {
+  // 「最新日」をそのまま使うと、土日に当たったときに母数が平日の 1/3 ほどに落ちる
+  // （このアプリは平日利用が 9 割）。直近7日のうち、もっとも多くの端末が開いた日を採る
+  const days = rangeDaysList().slice(-7);
+  let best = null, bestN = 0;
+  for (const d of days) {
+    const n = Number(state.daily[d]?.summary?.activeUsers) || 0;
+    if (n > bestN) { best = d; bestN = n; }
+  }
+  return best;
+}
+const snapshotGroup = (day, group) => (day ? (state.daily[day]?.[group] ?? {}) : {});
+const snapshotActive = day => (day ? Number(state.daily[day]?.summary?.activeUsers) || 0 : 0);
+
 /** 指定日リストのあるグループ（events / tabs / hours …）を合算する */
 function sumGroup(days, group) {
   const out = {};
@@ -776,11 +797,11 @@ function renderFeatureUsers() {
 // ─────────────────────────────────────────────────────────────
 function renderWidgets() {
   const host = $("#widgets"); host.innerHTML = "";
-  const days = rangeDaysList();
-  const users  = sumGroup(days, "widgetUsers");
-  const kinds  = sumGroup(days, "widgets");
-  const family = sumGroup(days, "widgetFamily");
-  const count  = sumGroup(days, "widgetCount");
+  const day = latestDayWithData();
+  const users  = snapshotGroup(day, "widgetUsers");
+  const kinds  = snapshotGroup(day, "widgets");
+  const family = snapshotGroup(day, "widgetFamily");
+  const count  = snapshotGroup(day, "widgetCount");
 
   const installed = Number(users.installed) || 0;
   const none      = Number(users.none) || 0;
@@ -796,7 +817,7 @@ function renderWidgets() {
       el("div", { class: "label", title: "ウィジェットを1つ以上置いている端末 ÷ 計測できた端末" }, "ウィジェット追加率"),
       el("div", { class: "value num" }, pct(installed, measured)),
       el("div", { class: "delta flat" }, el("span", { class: "jp" },
-        `${fmt(installed)} / ${fmt(measured)} 端末（延べ）`))),
+        `${fmt(installed)} / ${fmt(measured)} 台`))),
     el("div", { class: "card kpi-tile" },
       el("div", { class: "label" }, "置いていない端末"),
       el("div", { class: "value num" }, fmt(none)),
@@ -851,8 +872,10 @@ function renderWidgets() {
   const unused = WIDGETS.filter(w => !(Number(kinds[w.key]) > 0));
   if (unused.length) {
     host.append(el("div", { style: "font-size:12px;color:var(--ink-muted);margin-top:14px" },
-      `この期間に一度も置かれていないウィジェット: ${unused.map(w => w.label).join("、")}`));
+      `この日は置かれていなかったウィジェット: ${unused.map(w => w.label).join("、")}`));
   }
+  host.append(el("p", { class: "hint", style: "margin-top:10px" },
+    `直近7日でもっとも利用が多かった ${day} の実数です。日をまたいで足すと同じ端末を何度も数えてしまうため、1日で出しています。`));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1014,11 +1037,11 @@ function renderSurvey() {
 // ─────────────────────────────────────────────────────────────
 function renderAppBar() {
   const host = $("#appbar"); host.innerHTML = "";
-  const days = rangeDaysList();
-  const modes = sumGroup(days, "appbar");
-  const fixed = sumGroup(days, "appbarFixed");
-  const cycle = sumGroup(days, "appbarCycle");
-  const count = sumGroup(days, "appbarCycleCount");
+  const day = latestDayWithData();
+  const modes = snapshotGroup(day, "appbar");
+  const fixed = snapshotGroup(day, "appbarFixed");
+  const cycle = snapshotGroup(day, "appbarCycle");
+  const count = snapshotGroup(day, "appbarCycleCount");
   const total = sumOf(modes);
   if (!total) {
     host.append(el("div", { class: "empty" }, "アプリのアップデート後に届きます"));
@@ -1034,7 +1057,7 @@ function renderAppBar() {
     return el("div", { class: "card kpi-tile" },
       el("div", { class: "label", title: m.note }, m.label),
       el("div", { class: "value num" }, fmt(n)),
-      el("div", { class: "delta flat" }, el("span", { class: "jp" }, `${pct(n, total)}（延べ端末）`)));
+      el("div", { class: "delta flat" }, el("span", { class: "jp" }, `${pct(n, total)}（${fmt(n)} 台）`)));
   })));
 
   const slotCard = (title, hint, counts, denom, tone) => {
@@ -1101,7 +1124,9 @@ function renderAppBar() {
   ));
 
   host.append(el("p", { class: "hint", style: "margin-top:12px" },
-    `「デフォルトのまま」の ${fmt(nDefault)} 端末は、切り替え・4項目すべての状態です（設定を触っていないため、上の2枚には含みません）。`));
+    `「デフォルトのまま」の ${fmt(nDefault)} 台は、切り替え・4項目すべての状態です（設定を触っていないため、上の2枚には含みません）。`));
+  host.append(el("p", { class: "hint", style: "margin-top:6px" },
+    `直近7日でもっとも利用が多かった ${day} の実数です。日をまたいで足すと同じ端末を何度も数えてしまうため、1日で出しています。`));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1109,9 +1134,10 @@ function renderAppBar() {
 // ─────────────────────────────────────────────────────────────
 function renderBreakdowns() {
   const host = $("#breakdowns"); host.innerHTML = "";
-  const days = rangeDaysList();
+  const day = latestDayWithData();
+  const active = snapshotActive(day);
   for (const b of BREAKDOWNS) {
-    const counts = sumGroup(days, b.key);
+    const counts = snapshotGroup(day, b.key);
     let rows = Object.entries(counts).map(([k, v]) => ({ k, v: Number(v) || 0 })).filter(r => r.v > 0);
     if (b.order) rows.sort((a, x) => b.order.indexOf(a.k) - b.order.indexOf(x.k));
     else rows.sort((a, x) => x.v - a.v);
@@ -1143,6 +1169,10 @@ function renderBreakdowns() {
     }
     host.append(card);
   }
+  host.append(el("p", { class: "hint", style: "grid-column:1/-1;margin:2px 0 0" },
+    day
+      ? `直近7日でもっとも利用が多かった ${day} に、アプリを開いた ${fmt(active)} 台の内訳です。日をまたいで足すと同じ端末を何度も数えてしまうため、1日の実数で出しています。`
+      : "この期間のデータはまだありません。"));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1280,7 +1310,7 @@ function exportCSV() {
     if (!rows.length) continue;
     rows.sort((a, x) => x[1] - a[1]);
     lines.push([]);
-    lines.push([b.label, "キー", `期間内(${state.rangeDays}日)`]);
+    lines.push([b.label, "キー", `期間内(${state.rangeDays}日・延べ)`]);
     for (const [k, v] of rows) lines.push([b.format(k), k, v]);
   }
   const csv = "﻿" + lines.map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -1598,7 +1628,7 @@ function buildReport(win) {
         .sort((a, b) => a.n - b.n)[0];
       if (dropped && dropped.n / cyc < 0.5) {
         add("info", `切り替えから「${dropped.label}」を外している人が多いです`,
-            `切り替えにしている ${fmt(cyc)} 端末のうち、${dropped.label}を回しているのは ${pct(dropped.n, cyc)} だけです。`,
+            `切り替えにしている端末のうち、${dropped.label}を回しているのは ${pct(dropped.n, cyc)} だけです。`,
             "その項目が邪魔なのか、情報として弱いのかを確かめる。既定から外す判断材料にもなります");
       }
     }
