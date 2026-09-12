@@ -109,6 +109,7 @@ const state = {
   monthly: {},              // { "2026-09":   { activeUsers, newUsers } } 実人数
   totals: {},
   feedback: [],             // アプリ内「ご意見・ご要望」の回答
+  feedbackError: null,
   db: null,
 };
 
@@ -193,9 +194,17 @@ async function loadData() {
     get(ref(state.db, `${state.source}/weekly`)),
     get(ref(state.db, `${state.source}/monthly`)),
   ]);
-  // アンケートは本番/開発で分かれない単一ノード
-  const fbSnap = await get(ref(state.db, "feedback"));
-  state.feedback = normalizeFeedback(fbSnap.val());
+  // アンケートは本番/開発で分かれない単一ノード。
+  // 権限がなくても他のセクションは表示できるように、ここだけ失敗を吸収する
+  state.feedbackError = null;
+  try {
+    const fbSnap = await get(ref(state.db, "feedback"));
+    state.feedback = normalizeFeedback(fbSnap.val());
+  } catch (e) {
+    state.feedback = [];
+    state.feedbackError = e?.message ?? String(e);
+    console.warn("アンケートを読み込めませんでした:", state.feedbackError);
+  }
 
   state.daily   = dailySnap.val() || {};
   state.totals  = totalSnap.val() || {};
@@ -910,6 +919,11 @@ const surveyDay = ms => (ms ? dayKey(new Date(ms)) : "—");
 function renderSurvey() {
   const host = $("#survey"); host.innerHTML = "";
   const rows = state.feedback;
+  if (state.feedbackError) {
+    host.append(el("div", { class: "empty" },
+      "アンケートを読み込めませんでした（このアカウントに閲覧権限がありません）"));
+    return;
+  }
   if (!rows.length) {
     host.append(el("div", { class: "empty" }, "まだ回答がありません"));
     return;

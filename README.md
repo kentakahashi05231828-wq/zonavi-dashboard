@@ -382,6 +382,25 @@ python3 -m http.server 8000
 # → http://localhost:8000/index.html?demo=1
 ```
 
+## アクセス権限の状態
+
+Realtime Database のルールで、ノードごとに読み書きを絞っています。
+
+| ノード | 読み取り | 書き込み |
+| --- | --- | --- |
+| `analytics` / `analyticsDebug` | 管理者のみ | 書き込み専用（数値のみ・検証あり） |
+| `feedback` | 管理者のみ | ログイン済みユーザー |
+| `registeredUsers` | 管理者のみ | 自分の uid のみ |
+| `adminEmails` | 誰でも（下記） | 管理者のみ |
+| `broadcasts` | 誰でも（お知らせ） | 管理者のみ |
+
+管理者の判定は、アプリに焼き込んだ固定アドレスと、`adminEmails` に招待されたアドレスの
+どちらかに一致することです。招待分のキーはアプリ側 `AdminService.encodeKey` と同じ変換
+（`.` → `,` / `@` → `_at_`）でルール側からも引けるようにしてあります。
+
+`adminEmails` の読み取りだけ開いているのは、アプリの `FeedbackNotificationService` が
+未認証の REST で読んでいるためです。これを Cloud Function に移せば閉じられます（未対応）。
+
 ## セキュリティについて
 
 - `firebase-config.js` の `apiKey` は**秘密鍵ではなく**、ウェブに公開される前提の識別子です。
