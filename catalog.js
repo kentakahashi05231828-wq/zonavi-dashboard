@@ -72,7 +72,6 @@ export const EVENTS = [
   { key: "settings_language_open",     tab: "settings", label: "言語設定を開く" },
   { key: "settings_appearance_open",   tab: "settings", label: "表示モード設定を開く" },
   { key: "settings_admin_open",        tab: "settings", label: "管理者用設定を開く" },
-  { key: "settings_guide_open",        tab: "settings", label: "使い方ガイドを開く" },
   { key: "settings_legal_open",        tab: "settings", label: "法的表記を開く" },
   { key: "settings_language_ja",       tab: "settings", label: "言語を日本語に変更" },
   { key: "settings_language_en",       tab: "settings", label: "言語を英語に変更" },
@@ -311,11 +310,14 @@ export const BREAKDOWNS = [
  * ラベルだけ残して「（廃止）」付きで表示できるようにしておく。
  */
 export const RETIRED_EVENTS = [
-  { key: "home_hanako_open",         tab: "home", label: "AIチャットを開く" },
-  { key: "home_hanako_message_sent", tab: "home", label: "AIチャットに送信" },
+  { key: "home_hanako_open",         tab: "home",     label: "AIチャットを開く" },
+  { key: "home_hanako_message_sent", tab: "home",     label: "AIチャットに送信" },
+  // 設定から導線を外しただけで、AppGuideView は push 対応のまま残してある。
+  // 戻したらこの行を EVENTS に移し直す
+  { key: "settings_guide_open",      tab: "settings", label: "使い方ガイドを開く", suffix: "（いまは非表示）" },
 ];
-const retiredEventByKey = new Map(
-  RETIRED_EVENTS.map(e => [e.key, { ...e, label: `${e.label}（廃止）`, retired: true }]));
+const retiredEventByKey = new Map(RETIRED_EVENTS.map(e =>
+  [e.key, { ...e, label: `${e.label}${e.suffix ?? "（廃止）"}`, retired: true }]));
 
 const byKey = new Map(EVENTS.map(e => [e.key, e]));
 /** 未知のキー（アプリ側だけ先に追加された場合）もそのまま表示できるようにする */
