@@ -16,7 +16,7 @@
  * 大学公式の在籍者数（学部＋大学院）に置き換えてください。
  * null のままだと浸透率は表示されません。
  */
-export const STUDENT_COUNT = null;   // 例: 1800
+export const STUDENT_COUNT = 1965;   // 学部 1,848 ＋ 大学院 117（2026年度）
 
 /**
  * 学年暦。

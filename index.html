@@ -95,7 +95,9 @@
           <button data-source="analytics" aria-pressed="true">本番</button>
           <button data-source="analyticsDebug">開発</button>
         </div>
-        <button class="btn ghost" id="toggle-sections">すべて開く</button>
+        <button class="btn" id="open-drawer" aria-expanded="false" aria-controls="drawer">
+          <svg class="ic" aria-hidden="true"><use href="#ic-table_chart"/></svg><span class="lb">詳細情報</span>
+          <span class="n num" id="drawer-count"></span></button>
         <span class="bar-sep" aria-hidden="true"></span>
         <button class="btn" id="refresh" title="最新のデータを取得">
           <svg class="ic" aria-hidden="true"><use href="#ic-refresh"/></svg><span class="lb">更新</span></button>
@@ -130,18 +132,19 @@
 
       <div class="card" id="load-error" hidden></div>
 
-      <details class="section" id="sec-summary" data-group="overview" data-render="renderKPIs" open>
+      <div class="bento" id="bento">
+<details class="section" id="sec-summary" data-face="front" style="grid-area:1 / 1 / 4 / 13" data-group="overview" data-render="renderKPIs" open>
         <summary>
           <svg class="sec-ic" aria-hidden="true"><use href="#ic-summarize"/></svg>
           <h2>サマリー</h2>
-          <span class="hint">選択期間の合計。増減は直前の同じ長さの期間との比較。</span>
+          <span class="hint">合計インストール数だけは累計。ほかは選択期間の合計で、増減は直前の同じ長さの期間との比較。</span>
         </summary>
         <div class="sec-body">
           <div class="grid kpi" id="kpis"></div>
         </div>
       </details>
 
-      <details class="section" id="sec-users" data-group="overview" data-render="renderUsers" open>
+<details class="section" id="sec-users" data-face="front" style="grid-area:4 / 1 / 9 / 5" data-group="overview" data-render="renderUsers" open>
         <summary>
           <svg class="sec-ic" aria-hidden="true"><use href="#ic-group"/></svg>
           <h2>ユーザー数<span class="tag">実人数</span></h2>
@@ -150,7 +153,7 @@
         <div class="sec-body"><div id="users"></div></div>
       </details>
 
-      <details class="section" id="sec-trend" data-group="usage" data-render="renderTrend" open>
+<details class="section" id="sec-trend" data-face="front" style="grid-area:4 / 5 / 9 / 13" data-group="usage" data-render="renderTrend" open>
         <summary>
           <svg class="sec-ic" aria-hidden="true"><use href="#ic-show_chart"/></svg>
           <h2>日別の推移</h2>
@@ -159,7 +162,7 @@
         <div class="sec-body"><div class="card"><div id="trend"></div></div></div>
       </details>
 
-      <details class="section" id="sec-tabs" data-group="usage" data-render="renderTabs" open>
+<details class="section" id="sec-tabs" data-face="front" style="grid-area:9 / 1 / 13 / 7" data-group="usage" data-render="renderTabs" open>
         <summary>
           <svg class="sec-ic" aria-hidden="true"><use href="#ic-tab"/></svg>
           <h2>タブ別の使われ方</h2>
@@ -168,7 +171,49 @@
         <div class="sec-body"><div class="card"><div id="tabs-chart"></div></div></div>
       </details>
 
-      <details class="section" id="sec-features" data-group="usage" data-render="renderFeatures" open>
+<details class="section" id="sec-hours" data-face="front" style="grid-area:9 / 7 / 13 / 13" data-group="usage" data-render="renderHours" open>
+        <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-schedule"/></svg>
+          <h2>時間帯別の利用</h2>
+          <span class="hint">1日のどの時間に使われているか。通学時間・昼休みの山が見えます。</span>
+        </summary>
+        <div class="sec-body"><div class="card"><div id="hours"></div></div></div>
+      </details>
+      </div>
+
+      </main>
+
+      <!-- 裏：お弁当に載りきらない詳細。ふだんは画面の外に待たせておく -->
+      <aside class="drawer" id="drawer" aria-hidden="true" aria-label="詳細情報">
+        <div class="drawer-head">
+          <svg class="ic" aria-hidden="true"><use href="#ic-table_chart"/></svg>
+          <h2>詳細情報</h2>
+          <span class="hint">お弁当に載りきらない項目。開いている間だけ描画します。</span>
+          <button class="btn ghost" id="toggle-sections">すべて開く</button>
+          <button class="btn icon-only" id="drawer-close" aria-label="詳細情報を閉じる">
+            <svg class="ic" aria-hidden="true"><use href="#ic-close"/></svg>
+          </button>
+        </div>
+        <div class="drawer-body">
+<details class="section" id="sec-users-periods" data-face="detail" data-group="overview" data-render="renderUsers" open>
+        <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-group"/></svg>
+          <h2>ユーザー数の推移<span class="tag">実人数</span></h2>
+          <span class="hint">週次・月次の実人数。表の「ユーザー数」の4つの数字の内訳です。</span>
+        </summary>
+        <div class="sec-body"><div id="users-periods"></div></div>
+      </details>
+
+<details class="section" id="sec-weekdays" data-face="detail" data-group="usage" data-render="renderWeekdays" open>
+        <summary>
+          <svg class="sec-ic" aria-hidden="true"><use href="#ic-calendar_month"/></svg>
+          <h2>曜日別の利用</h2>
+          <span class="hint">アクティブ端末を曜日で分けたもの。授業のある平日と休日の差が見えます。</span>
+        </summary>
+        <div class="sec-body"><div class="card"><div id="weekdays"></div></div></div>
+      </details>
+
+<details class="section" id="sec-features" data-face="detail" data-group="usage" data-render="renderFeatures" open>
         <summary>
           <svg class="sec-ic" aria-hidden="true"><use href="#ic-touch_app"/></svg>
           <h2>機能別の利用回数</h2>
@@ -188,7 +233,7 @@
         </div>
       </details>
 
-      <details class="section" id="sec-feature-users" data-group="usage" data-render="renderFeatureUsers" open>
+<details class="section" id="sec-feature-users" data-face="detail" data-group="usage" data-render="renderFeatureUsers" open>
         <summary>
           <svg class="sec-ic" aria-hidden="true"><use href="#ic-groups"/></svg>
           <h2>機能ごとの利用者数<span class="tag">実人数</span></h2>
@@ -197,7 +242,7 @@
         <div class="sec-body"><div class="card"><div id="feature-users"></div></div></div>
       </details>
 
-      <details class="section" id="sec-widgets" data-group="config" data-render="renderWidgets" open>
+<details class="section" id="sec-widgets" data-face="detail" data-group="config" data-render="renderWidgets" open>
         <summary>
           <svg class="sec-ic" aria-hidden="true"><use href="#ic-widgets"/></svg>
           <h2>ウィジェット</h2>
@@ -206,7 +251,7 @@
         <div class="sec-body"><div id="widgets"></div></div>
       </details>
 
-      <details class="section" id="sec-appbar" data-group="config" data-render="renderAppBar" open>
+<details class="section" id="sec-appbar" data-face="detail" data-group="config" data-render="renderAppBar" open>
         <summary>
           <svg class="sec-ic" aria-hidden="true"><use href="#ic-view_carousel"/></svg>
           <h2>アプリバーの表示設定</h2>
@@ -215,25 +260,7 @@
         <div class="sec-body"><div id="appbar"></div></div>
       </details>
 
-      <details class="section" id="sec-hours" data-group="usage" data-render="renderHours" open>
-        <summary>
-          <svg class="sec-ic" aria-hidden="true"><use href="#ic-schedule"/></svg>
-          <h2>時間帯別の利用</h2>
-          <span class="hint">1日のどの時間に使われているか。通学時間・昼休みの山が見えます。</span>
-        </summary>
-        <div class="sec-body"><div class="card"><div id="hours"></div></div></div>
-      </details>
-
-      <details class="section" id="sec-weekdays" data-group="usage" data-render="renderWeekdays" open>
-        <summary>
-          <svg class="sec-ic" aria-hidden="true"><use href="#ic-calendar_month"/></svg>
-          <h2>曜日別の利用</h2>
-          <span class="hint">アクティブ端末を曜日で分けたもの。授業のある平日と休日の差が見えます。</span>
-        </summary>
-        <div class="sec-body"><div class="card"><div id="weekdays"></div></div></div>
-      </details>
-
-      <details class="section" id="sec-breakdowns" data-group="config" data-render="renderBreakdowns" open>
+<details class="section" id="sec-breakdowns" data-face="detail" data-group="config" data-render="renderBreakdowns" open>
         <summary>
           <svg class="sec-ic" aria-hidden="true"><use href="#ic-smartphone"/></svg>
           <h2>利用環境の内訳</h2>
@@ -242,7 +269,7 @@
         <div class="sec-body"><div class="grid three" id="breakdowns"></div></div>
       </details>
 
-      <details class="section" id="sec-survey" data-group="voice" data-render="renderSurvey" open>
+<details class="section" id="sec-survey" data-face="detail" data-group="voice" data-render="renderSurvey" open>
         <summary>
           <svg class="sec-ic" aria-hidden="true"><use href="#ic-forum"/></svg>
           <h2>アンケート<span class="tag">自己申告</span></h2>
@@ -251,7 +278,7 @@
         <div class="sec-body"><div id="survey"></div></div>
       </details>
 
-      <details class="section" id="sec-table" data-group="summary" data-render="renderTable">
+<details class="section" id="sec-table" data-face="detail" data-group="summary" data-render="renderTable">
         <summary>
           <svg class="sec-ic" aria-hidden="true"><use href="#ic-table_chart"/></svg>
           <h2>全データ表</h2>
@@ -266,7 +293,7 @@
         </div>
       </details>
 
-      <details class="section" id="sec-report" data-group="summary" data-render="renderReport" open>
+<details class="section" id="sec-report" data-face="detail" data-group="summary" data-render="renderReport" open>
         <summary>
           <svg class="sec-ic" aria-hidden="true"><use href="#ic-auto_awesome"/></svg>
           <h2>レポート<span class="tag">自動分析</span></h2>
@@ -285,6 +312,7 @@
         </div>
       </details>
 
+
       <footer>
         <p>
           集計は Firebase Realtime Database の <code>analytics</code> ノードに保存された匿名カウンタです。
@@ -292,7 +320,9 @@
           アプリ側で「設定 → 利用状況の記録」を OFF にした端末は集計対象外になります。
         </p>
       </footer>
-      </main>
+        </div>
+      </aside>
+      <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
     </div>
   </div>
 

@@ -759,3 +759,125 @@ main > footer p { margin: 0; }
   .more-btn { padding: 10px 2px; font-size: 13px; }
   .field { padding: 11px 14px; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   お弁当（表の顔）と、裏の詳細ドロワー
+   —————————————————————————————————————————————————————————————
+   14項目を縦に積むと「どこを見ればいいか分からない」画面になる。
+   そこで、一目で効く6項目を1画面の盤面に置き、残りは裏にまとめた。
+
+   盤面は 12列 × 12行。タイルの大きさがそのまま主張の強さになる。
+   置き場所は index.html の各セクションの style="grid-area:…" で決まる。
+   並べ替えたいときはその数字だけをいじる。
+   ───────────────────────────────────────────────────────────── */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-template-rows: repeat(12, minmax(0, 1fr));
+  gap: var(--s-md);
+}
+.bento > .section {
+  margin-bottom: 0;
+  min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+}
+/* 新しい Chrome は <details> の中身を ::details-content という箱に入れる。
+   ここを素通しにしないと flex がその先の .sec-body まで届かず、
+   中身の高さのままタイルから溢れる（Safari には無い箱なので、無視されても困らない）*/
+.bento > .section::details-content {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+}
+/* 表のタイルは畳めない。畳むと弁当箱に穴があく。
+   補足文はタイルの縦を食うので隠し、説明は title 属性に残す */
+.bento > .section > summary { pointer-events: none; padding: 11px 16px; }
+.bento > .section > summary::after { display: none; }
+.bento > .section > summary h2 { font-size: 15px; }
+.bento > .section > summary .hint { display: none; }
+.bento > .section > summary .tag { font-size: 10px; }
+/* KPI の帯は 12列ぶんの横幅があるぶん、縦は詰められる。
+   余白と数字を一段落として、3行ぶんの高さに5枚を収める */
+/* タイルの中では1枚あたりの下限を下げる。168px のままだと
+   「ユーザー数」の4枚が 3＋1 に折り返して、タイルの高さを超える */
+.bento .grid.kpi { grid-template-columns: repeat(auto-fit, minmax(146px, 1fr)); }
+.bento .grid.kpi > .card { padding-block: 2px; }
+/* 「ユーザー数」の3つは横一列で置く。auto-fit に任せると割れ方が
+   画面幅で変わってしまう */
+.bento #sec-users .grid.kpi { grid-template-columns: repeat(3, 1fr); }
+.bento .kpi-tile .label { margin-bottom: 2px; }
+.bento .kpi-tile .value { font-size: 27px; }
+.bento .kpi-tile .delta { margin-top: 2px; }
+.bento .grid.kpi > .card:nth-child(1) .value { font-size: 29px; }
+.bento #sec-summary .sec-body { padding: 2px 14px 6px; }
+/* 中身がタイルに収まらないときは、ページではなくタイルの中でスクロールさせる。
+   隠れていることに気づけるよう、下端にぼかしを重ねる（app.js の markOverflowingTiles）*/
+.bento .sec-body { flex: 1; min-height: 0; overflow: auto; padding: 10px 14px; }
+.bento > .section { position: relative; }
+.bento > .section::after {
+  content: ""; position: absolute; left: 1px; right: 1px; bottom: 0; height: 32px;
+  background: linear-gradient(to top, var(--surface) 20%, transparent);
+  pointer-events: none; opacity: 0; transition: opacity .18s;
+}
+.bento > .section.is-overflowing::after { opacity: 1; }
+.bento .sec-body > .card { height: 100%; }
+
+/* 盤面を使うときは、本文側を画面の高さに収める（ページは動かさない）。
+   高さを計算式で決めるとデモ帯やエラー表示のぶんだけ溢れるので、
+   main を縦の flex にして「残り全部」を盤面に渡す */
+body.has-bento { overflow: hidden; }
+body.has-bento main {
+  height: calc(100dvh - var(--header-h) - var(--bar-h));
+  padding: var(--s-md) var(--s-lg);
+  display: flex; flex-direction: column; gap: var(--s-md);
+}
+/* 盤面は画面幅をぎりぎりまで使う。1200px で止めると、
+   大きなモニタでは左右に何も無い帯ができてタイルだけが痩せる */
+body.has-bento .layout { max-width: none; }
+body.has-bento .topbar, body.has-bento .filterbar > .bar-scroll { max-width: none; }
+body.has-bento .bento { flex: 1; min-height: 0; }
+body.has-bento main > .demo-banner { flex: none; margin-bottom: 0; }
+
+/* ── 裏：詳細ドロワー ───────────────────────────────
+   右から重ねる。閉じている間は幅が 0 でグラフが測れないので、
+   開いた時点で中のセクションを描き直す（app.js の openDrawer）*/
+.drawer {
+  position: fixed; inset: 0 0 0 auto;
+  width: min(1120px, 94vw);
+  background: var(--plane);
+  border-left: 1px solid var(--border);
+  z-index: 40;
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform .28s cubic-bezier(.3, .7, .3, 1), visibility 0s .28s;
+}
+.drawer.open { transform: none; visibility: visible; transition: transform .28s cubic-bezier(.3, .7, .3, 1), visibility 0s; }
+.drawer-head {
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  align-items: center; gap: var(--s-md);
+  padding: 0 var(--s-lg); height: var(--header-h); flex: none;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.drawer-head h2 { font-size: 17px; margin: 0; }
+.drawer-head .ic { width: 20px; height: 20px; color: var(--g-summary-t); }
+.drawer-head .hint { font-size: 12px; color: var(--ink-muted); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drawer-body { flex: 1; overflow: auto; padding: var(--s-xl); }
+.drawer-body > footer { margin-top: var(--s-xl); }
+.drawer-backdrop { position: fixed; inset: 0; background: rgba(20, 26, 33, .38); z-index: 39; }
+
+/* 盤面が成立しない高さ・幅では、もとの「縦に積む」形に戻す。
+   狭い画面で 12×12 に詰めると、どのタイルも読めなくなる */
+@media (max-width: 900px), (max-height: 560px) {
+  body.has-bento { overflow: auto; }
+  .bento {
+    display: block; height: auto; min-height: 0;
+  }
+  .bento > .section { display: block; margin-bottom: var(--s-lg); }
+  .bento > .section > summary { pointer-events: auto; padding: 14px 46px 14px 18px; }
+  .bento > .section > summary::after { display: block; }
+  .bento > .section > summary .hint { display: block; }
+  .bento .sec-body { overflow: visible; padding: 18px; }
+  .bento > .section::after { display: none; }
+  .drawer { width: 100vw; }
+}

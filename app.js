@@ -38,6 +38,26 @@ const cssVar = name => getComputedStyle(document.documentElement).getPropertyVal
  * 収まらないときに縮めるとラベルが読めなくなるので、実寸のまま .chart 側で横スクロールさせる。
  */
 const chartWidth = (W, avail) => (W > avail ? `width:${W}px` : "width:100%;max-width:100%");
+
+/**
+ * グラフに使える高さ。
+ *
+ * 盤面（お弁当）のタイルは高さが有限なので、既定の高さのまま描くと
+ * タイルからはみ出して下が隠れる。タイルの中にいるときだけ、
+ * 割り当てられた高さに合わせて縮める。
+ * 裏の詳細や狭い画面では、もとの高さをそのまま使う。
+ *
+ *   host    グラフを入れる要素
+ *   preferred もとの高さ
+ *   extra   同じタイルに入る凡例や注記のぶん（実測しても innerHTML を
+ *           消した直後で測れないため、見積もりを渡す）
+ */
+function fitHeight(host, preferred, extra = 0) {
+  const body = host.closest(".sec-body");
+  if (!body || !body.closest(".bento")) return preferred;
+  const free = body.clientHeight - 28 - extra;      // 28 は .sec-body の上下パディング
+  return Math.max(110, Math.min(preferred, Math.round(free)));
+}
 const tabColor = id => cssVar(`--tab-${id}`) || cssVar("--tab-app");
 
 /** JST の日付キー（アプリ側と同じ基準） */
@@ -270,6 +290,21 @@ function renderKPIs() {
     { key: "events",      label: "総操作回数",             note: "計測している操作の合計" },
   ];
   const host = $("#kpis"); host.innerHTML = "";
+
+  // 合計インストール数は盤面の左上、いちばん先に読まれる位置に置く。
+  // ほかの KPI と違って期間に縛られない累計なので、前期間比ではなく
+  // 学内浸透率を添える（分母が確定している学内アプリの一番強い言い方）。
+  const installs = Number(state.totals?.summary?.installs) || 0;
+  host.append(el("div", { class: "card kpi-tile" },
+    el("div", { class: "label", title: "初回起動した端末の累計。App Store の実ダウンロード数ではありません" },
+      "合計インストール数"),
+    el("div", { class: "value num" }, fmt(installs)),
+    el("div", { class: "delta flat" }, el("span", { class: "jp" },
+      STUDENT_COUNT > 0
+        ? `学生 ${fmt(STUDENT_COUNT)}人の ${((installs / STUDENT_COUNT) * 100).toFixed(1)}% に届いた`
+        : "初回起動した端末の累計")),
+  ));
+
   for (const m of metrics) {
     const now = sumSummary(days, m.key), before = sumSummary(prev, m.key);
     const diff = before > 0 ? ((now - before) / before) * 100 : null;
@@ -320,9 +355,10 @@ function calendarForView() {
 function renderPeriodBars(host, rows, ariaLabel) {
   const max = Math.max(1, ...rows.map(r => r.value));
   const pad = { t: 14, r: 10, b: 40, l: 46 };
-  // 1本あたり最低 56px を確保する。入りきらないときは縮めずに横スクロールさせる
+  // 1本あたり最低 34px を確保する。入りきらないときは縮めずに横スクロールさせる。
+  // （盤面のタイルは幅 400px 前後。56px だと 12週で必ず溢れていた）
   const avail = Math.max(280, host.clientWidth || 760);
-  const W = Math.max(avail, rows.length * 56 + pad.l + pad.r), H = 200;
+  const W = Math.max(avail, rows.length * 34 + pad.l + pad.r), H = 200;
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   // 本数が少ないと1本が間延びするので、幅に上限を設けて中央に寄せる
   const bw = Math.min(iw / rows.length, 76);
@@ -372,7 +408,6 @@ function renderUsers() {
   const host = $("#users"); host.innerHTML = "";
   const today = dayKey(new Date());
   const curWeek = isoWeekKey(today), curMonth = monthKeyOf(today);
-  const installs = Number(state.totals?.summary?.installs) || 0;
 
   const weekRows = lastWeekKeys(WEEKS_SHOWN).map(k => {
     const start = weekStartDay(k);
@@ -419,10 +454,9 @@ function renderUsers() {
     return `前の期間比 ${r > 0 ? "+" : ""}${r.toFixed(1)}%`;
   };
 
+  // 合計インストール数はサマリーの先頭に移したので、ここには出さない。
+  // このセクションは「実人数」だけで揃える
   host.append(el("div", { class: "grid kpi" },
-    tile("累計ダウンロード", fmt(installs),
-         share(installs) ? `${share(installs)}（初回起動した端末の累計）` : "初回起動した端末の累計",
-         "App Store の実ダウンロード数ではなく、アプリを一度でも開いた端末の数です"),
     tile("週間ユーザー（WAU）", lastWeek ? fmt(lastWeek.value) : "—",
          lastWeek
            ? [share(lastWeek.value), `${weekStartDay(lastWeek.key)} の週`, deltaLine(lastWeek, prevWeek)]
@@ -441,7 +475,7 @@ function renderUsers() {
     host.append(el("div", { class: "card", style: "margin-top:14px" },
       el("div", { class: "empty" }, "実人数はアプリのアップデート後に届きます")));
     host.append(el("p", { class: "hint", style: "margin-top:10px" },
-      "累計ダウンロードは既存のデータから出しています。WAU / MAU は「その週・その月で最初に開いたときだけ数える」処理がアプリ側に要るため、次回リリース以降に貯まり始めます。"));
+      "合計インストール数は既存のデータから出していて、サマリーに表示しています。WAU / MAU は「その週・その月で最初に開いたときだけ数える」処理がアプリ側に要るため、次回リリース以降に貯まり始めます。"));
     return;
   }
 
@@ -452,18 +486,24 @@ function renderUsers() {
       el("p", { class: "hint", style: "margin:0 0 12px" }, hint), box);
     return { c, box };
   };
+  // 盤面（お弁当）に載せるのは上の4つの数字まで。週次・月次の棒グラフは
+  // 縦に場所を食うので、裏の「ユーザー数の推移」へ回す。
+  // そちらが無い画面（従来の縦積み）では、これまでどおり下に続ける。
+  const sub = $("#users-periods") ?? host;
+  if (sub !== host) sub.innerHTML = "";
+
   const wk = card(`週間ユーザー数（直近${WEEKS_SHOWN}週）`,
                   "同じ人がその週に何回開いても1人。横軸はその週の月曜日。");
   const mo = card(`月間ユーザー数（直近${MONTHS_SHOWN}ヶ月）`,
                   "同じ人がその月に何回開いても1人。");
-  host.append(el("div", { class: "grid", style: "margin-top:14px;gap:14px" }, wk.c, mo.c));
+  sub.append(el("div", { class: "grid two", style: "gap:14px" }, wk.c, mo.c));
   // 幅は DOM に入ってからでないと測れないので、append の後に描く
   renderPeriodBars(wk.box, weekRows, "週ごとの実利用者数");
   renderPeriodBars(mo.box, monthRows, "月ごとの実利用者数");
-  host.append(el("p", { class: "hint", style: "margin-top:12px" },
+  sub.append(el("p", { class: "hint", style: "margin-top:12px" },
     "「サマリー」のアクティブ端末は延べ（1端末1日1カウント）なので、ここの実人数より大きくなります。どちらも正しく、意味が違います。"));
   if (!(STUDENT_COUNT > 0)) {
-    host.append(el("p", { class: "hint", style: "margin-top:6px" },
+    sub.append(el("p", { class: "hint", style: "margin-top:6px" },
       "config.js に学生数を入れると、台数が「学内の何%に届いたか」に変わります。学内専用アプリは分母が確定しているので、この率が一番強い指標になります。"));
   }
 }
@@ -490,7 +530,7 @@ function renderTrend() {
       el("span", { class: "swatch", style: `background:${s.color}` }), s.label))));
 
   const avail = Math.max(560, host.clientWidth || 900);
-  const W = Math.max(avail, days.length * 16), H = 240;
+  const W = Math.max(avail, days.length * 16), H = fitHeight(host, 240, 40);
   const pad = { t: 16, r: 54, b: 26, l: 44 };
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   const x = i => pad.l + (days.length === 1 ? iw / 2 : (i / (days.length - 1)) * iw);
@@ -716,10 +756,13 @@ function renderHours() {
   if (!max) { host.append(el("div", { class: "empty" }, "この期間のデータはまだありません")); return; }
 
   const seq = [1, 2, 3, 4, 5, 6, 7].map(i => cssVar(`--seq-${i}`));
-  const W = Math.max(560, host.clientWidth || 720), H = 170, pad = { t: 10, r: 8, b: 26, l: 36 };
+  // 340 は盤面のいちばん狭いタイルに合わせた下限（24本＋軸が読める最小）
+  // l は y軸ラベルの逃げ。36 だと "2,000" の左端が枠の外に出て切れる
+  const W = Math.max(340, host.clientWidth || 720), H = fitHeight(host, 170, 30),
+        pad = { t: 10, r: 8, b: 26, l: 46 };
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   const bw = iw / 24;
-  const avail = Math.max(320, host.clientWidth || 720);
+  const avail = Math.max(320, host.clientWidth || 720);   // 下限は W と揃えておく
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img",
                              style: chartWidth(W, avail), "aria-label": "時間帯別の操作回数" });
   const niceMax = niceCeil(max);
@@ -942,7 +985,7 @@ function renderSurvey() {
     tile("回答数", fmt(rows.length), `${surveyDay(oldest)} 〜 ${surveyDay(latest)}`,
          "アプリ内のご意見・ご要望フォームに届いた回答の総数"),
     tile("回答率", installs > 0 ? pct(rows.length, installs) : "—",
-         installs > 0 ? `累計 ${fmt(installs)} 台に対して` : "累計ダウンロードが未取得",
+         installs > 0 ? `累計 ${fmt(installs)} 台に対して` : "合計インストール数が未取得",
          "回答数 ÷ 初回起動した端末の累計"),
     tile("自由記述あり", fmt(withText), `全体の ${pct(withText, rows.length)}`,
          "改善点または要望が書かれていた回答の数"),
@@ -1888,6 +1931,129 @@ function render() {
     : "";
   $("#range-note").textContent =
     `${rangeDaysList()[0]} 〜 ${rangeDaysList().at(-1)}（JST）`;
+  markOverflowingTiles();
+  animateBento();
+}
+
+// ─────────────────────────────────────────────────────────────
+// 盤面のアニメーション
+//
+// レンダラーには手を入れない。描き終わったものを後から動かす方式にしてある。
+// こうしておくと、グラフの実装を変えてもアニメーション側は壊れないし、
+// 裏の詳細（読むための画面）は静かなままにできる。
+//
+// 描き直しのたびに走るので、前回の走りかけを token で無効にする。
+// ─────────────────────────────────────────────────────────────
+const easeOutExpo = p => (p >= 1 ? 1 : 1 - 2 ** (-10 * p));
+const easeInOut   = p => (p < 0.5 ? 4 * p ** 3 : 1 - (-2 * p + 2) ** 3 / 2);
+const motionOff = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+let motionToken = 0;
+
+/** ms かけて onTick(0→1) を呼ぶ。token が変わったら途中でやめる */
+function tween(ms, onTick, { delay = 0, ease = easeOutExpo, token } = {}) {
+  const start = performance.now() + delay;
+  const step = now => {
+    if (token !== motionToken) return;              // 新しい描画に追い越された
+    if (now < start) return requestAnimationFrame(step);
+    const p = Math.min(1, (now - start) / ms);
+    onTick(ease(p));
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+/** 数字を 0 から数え上げる。「—」や文字列はそのまま置いておく */
+function countUp(node, { delay, token }) {
+  const textNode = [...node.childNodes].find(n => n.nodeType === 3 && n.nodeValue.trim());
+  if (!textNode) return;
+  const m = textNode.nodeValue.trim().match(/^([0-9][0-9,]*(?:\.[0-9]+)?)(%?)$/);
+  if (!m) return;
+  const to = Number(m[1].replace(/,/g, ""));
+  const decimals = (m[1].split(".")[1] || "").length;
+  const unit = m[2];
+  const put = v => { textNode.nodeValue = (decimals ? v.toFixed(decimals) : fmt(v)) + unit; };
+  put(0);
+  tween(1100, p => put(to * p), { delay, token });
+}
+
+/** 横棒を左から伸ばす */
+function growWidth(node, { delay, token }) {
+  const target = node.style.width;
+  if (!target) return;
+  node.style.width = "0%";
+  tween(820, p => { node.style.width = `calc(${target} * ${p})`; }, { delay, token });
+}
+
+/** 縦棒を下から立ち上げる */
+function growBar(rect, { delay, token }) {
+  const h = Number(rect.getAttribute("height")), y = Number(rect.getAttribute("y"));
+  if (!Number.isFinite(h) || !Number.isFinite(y)) return;
+  const base = y + h;
+  rect.setAttribute("height", 0);
+  rect.setAttribute("y", base);
+  tween(760, p => {
+    rect.setAttribute("height", h * p);
+    rect.setAttribute("y", base - h * p);
+  }, { delay, token });
+}
+
+/** 折れ線を左から描く */
+function drawLine(path, { delay, token }) {
+  const len = path.getTotalLength?.();
+  if (!len) return;
+  path.style.strokeDasharray = String(len);
+  path.style.strokeDashoffset = String(len);
+  tween(1500, p => { path.style.strokeDashoffset = String(len * (1 - p)); },
+        { delay, token, ease: easeInOut });
+}
+
+/** 構成比の帯を左から開く */
+function wipe(node, { delay, token }) {
+  node.style.clipPath = "inset(0 100% 0 0)";
+  tween(900, p => { node.style.clipPath = `inset(0 ${(1 - p) * 100}% 0 0)`; }, { delay, token });
+}
+
+/**
+ * 盤面ぜんぶを動かす。タイルごとに少しずつ遅らせて、
+ * 左上から順に立ち上がって見えるようにする。
+ */
+function animateBento() {
+  if (motionOff() || !document.body.classList.contains("has-bento")) return;
+  const token = ++motionToken;
+  $$('details.section[data-face="front"]').forEach((tile, i) => {
+    const base = 80 + i * 110;
+    for (const v of tile.querySelectorAll(".kpi-tile .value")) countUp(v, { delay: base, token });
+    tile.querySelectorAll(".rank-row").forEach((row, k) => {
+      const d = base + k * 60;
+      const fill = row.querySelector(".track .fill");
+      if (fill) growWidth(fill, { delay: d, token });
+      const val = row.querySelector(".val");
+      if (val) countUp(val, { delay: d, token });
+    });
+    // タブの構成比の帯（flex で並ぶセグメント）はまとめて左から開く
+    const strip = tile.querySelector('.sec-body > .card > div[style*="display:flex"]');
+    if (strip) wipe(strip, { delay: base, token });
+    tile.querySelectorAll("svg rect").forEach((r, k) => growBar(r, { delay: base + k * 22, token }));
+    tile.querySelectorAll("svg path").forEach(pth => {
+      if (pth.getAttribute("fill") !== "none" && !pth.getAttribute("stroke")) return;  // 帯や面は描かない
+      drawLine(pth, { delay: base, token });
+    });
+  });
+}
+
+/**
+ * 盤面のタイルは、入りきらない中身をタイルの中でスクロールさせる。
+ * 黙って隠れると「これで全部」と読み違えるので、まだ下がある
+ * タイルの下端にぼかしを出す。
+ */
+function markOverflowingTiles() {
+  requestAnimationFrame(() => {
+    for (const sec of $$('details.section[data-face="front"]')) {
+      const body = sec.querySelector(".sec-body");
+      sec.classList.toggle("is-overflowing",
+        !!body && body.scrollHeight > body.clientHeight + 2);
+    }
+  });
 }
 
 async function refresh() {
@@ -1954,7 +2120,9 @@ function rerenderSection(sec) {
 function applyGroup(g) {
   state.group = g;
   try { localStorage.setItem(NAV_GROUP_KEY, g); } catch { /* 保存できなくても動く */ }
-  for (const sec of $$("details.section")) {
+  // 絞り込みは裏の詳細にだけ効かせる。表のタイルは盤面の一部なので、
+  // 消すと弁当箱に穴があく
+  for (const sec of $$('details.section[data-face="detail"]')) {
     const show = g === "*" || sec.dataset.group === g;
     const wasHidden = sec.hidden;
     sec.hidden = !show;
@@ -1980,7 +2148,7 @@ function setNavOpen(on) {
 
 function initNav() {
   const inner = $("#sidenav-inner");
-  const secs = $$("details.section");
+  const secs = $$('details.section[data-face="detail"]');
   const titleOf = sec => sec.querySelector("h2")?.firstChild?.textContent?.trim() ?? sec.id;
   const narrow = () => matchMedia("(max-width: 900px)").matches;
 
@@ -2018,7 +2186,8 @@ function initNav() {
       if (!sec) return;
       if (sec.hidden) applyGroup(sec.dataset.group);   // 絞り込みで隠れていたら、その分類へ切り替える
       if (!sec.open) sec.open = true;
-      sec.scrollIntoView({ behavior: "smooth", block: "start" });
+      openDrawer();                                    // 飛び先は裏にあるので先に開ける
+      requestAnimationFrame(() => sec.scrollIntoView({ behavior: "smooth", block: "start" }));
     }
     if (narrow()) setNavOpen(false);
   });
@@ -2037,7 +2206,7 @@ function initNav() {
     savedOpen = localStorage.getItem(NAV_OPEN_KEY);
   } catch { /* 既定に戻す */ }
   applyGroup(saved ?? "*");
-  setNavOpen(narrow() ? false : savedOpen !== "0");
+  setNavOpen(savedOpen === "1");   // 盤面の幅を優先して既定は閉じる
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2055,15 +2224,17 @@ function initSections() {
     renderFeatureUsers, renderWidgets, renderHours, renderWeekdays,
     renderBreakdowns, renderTable, renderReport,
   };
-  const secs = $$("details.section");
+  // 表のタイルは盤面そのものなので、畳ませない
+  for (const sec of $$('details.section[data-face="front"]')) sec.open = true;
+
+  const secs = $$('details.section[data-face="detail"]');
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(SECTION_STATE_KEY) || "null"); } catch { /* 壊れていたら既定に戻す */ }
 
   secs.forEach(sec => {
     if (saved && sec.id in saved) sec.open = !!saved[sec.id];
-    // 初期状態は「概況」だけ開く。14項目を全部開くと、結局どこを見ればいいか分からなくなる。
-    // 残りは畳んだ見出しが目次として並ぶので、そこから辿る
-    else sec.open = sec.dataset.group === "overview";
+    // 裏は全部開いた状態で始める。畳みたい人だけ畳む
+    else sec.open = true;
     sec.addEventListener("toggle", () => {
       persistSections(secs);
       if (sec.open) renderers[sec.dataset.render]?.();
@@ -2076,6 +2247,48 @@ function initSections() {
     secs.forEach(s => { s.open = opening; });   // toggle イベント側で保存と再描画が走る
   });
   syncToggleLabel(secs);
+}
+
+// ─────────────────────────────────────────────────────────────
+// 裏の詳細ドロワー
+//
+// 閉じている間は幅が 0 で、中のグラフは描いても幅が合わない。
+// セクションを開いたときと同じ理屈で、開いた時点でまとめて描き直す。
+// ─────────────────────────────────────────────────────────────
+const detailSections = () => $$('details.section[data-face="detail"]');
+
+function openDrawer() {
+  const d = $("#drawer");
+  if (d.classList.contains("open")) return;
+  d.classList.add("open");
+  d.setAttribute("aria-hidden", "false");
+  $("#drawer-backdrop").hidden = false;
+  $("#open-drawer").setAttribute("aria-expanded", "true");
+  // 幅が確定してから描き直す
+  requestAnimationFrame(() => {
+    for (const sec of detailSections()) if (sec.open && !sec.hidden) rerenderSection(sec);
+  });
+}
+
+function closeDrawer() {
+  const d = $("#drawer");
+  if (!d.classList.contains("open")) return;
+  d.classList.remove("open");
+  d.setAttribute("aria-hidden", "true");
+  $("#drawer-backdrop").hidden = true;
+  $("#open-drawer").setAttribute("aria-expanded", "false");
+}
+
+function initDrawer() {
+  $("#drawer-count").textContent = String(detailSections().length);
+  $("#open-drawer").addEventListener("click", openDrawer);
+  $("#drawer-close").addEventListener("click", closeDrawer);
+  $("#drawer-backdrop").addEventListener("click", closeDrawer);
+  addEventListener("keydown", ev => { if (ev.key === "Escape") closeDrawer(); });
+  document.body.classList.add("has-bento");
+  // #details 付きで開くと裏から始まる。項目を人に見せるときのリンク用
+  if (location.hash === "#details") openDrawer();
+  addEventListener("resize", markOverflowingTiles);
 }
 
 function persistSections(secs) {
@@ -2104,6 +2317,7 @@ function markScrollable() {
 function wireControls() {
   initNav();
   initSections();
+  initDrawer();
   $$("#range-seg button").forEach(b => b.addEventListener("click", () => {
     state.rangeDays = Number(b.dataset.days);
     $$("#range-seg button").forEach(x => x.setAttribute("aria-pressed", x === b));
@@ -2207,6 +2421,8 @@ async function main() {
     if (!user) {
       showGate([
         el("p", {}, "利用状況を見るには、管理者アカウントでログインしてください。"),
+        el("p", { class: "hint", style: "margin-top:8px" },
+          "このダッシュボードは、許可された管理者アカウントのみ閲覧できます。Google でログインしても、許可されていないアカウントでは内容を表示できません。閲覧権限が必要な場合は管理者までご連絡ください。"),
         el("button", { class: "btn primary", style: "margin-top:18px",
           onclick: async () => {
             try { await authMod.signInWithPopup(auth, new authMod.GoogleAuthProvider()); }
